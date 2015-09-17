@@ -58,7 +58,7 @@ $ mpirun -np 4 ./build/TrafficSim --sim_id=999 --store_dir="./tmp" --diff_init \
 
 For repeat execution, use `--diff_repeat` option.
 ```    
-$ mpirun -np 4 ./build/TrafficSim --sim_id=99 --store_dir="./tmp" --diff_repeat \   
+$ mpirun -np 4 ./build/TrafficSim --sim_id=999 --store_dir="./tmp" --diff_repeat \   
                  ./traffic/ring/part/graph.part.4 \
                  ./traffic/ring/rd.sim.csv \
                  ./traffic/ring/trip.csv  
