@@ -1,0 +1,733 @@
+/*
+ * logical_process.hpp
+ *
+ *  Created on: Dec 28, 2014
+ *      Author: masahanai
+ */
+
+#ifndef SCALESIM_TIMEWARP_LOGICAL_PROCESS_HPP_
+#define SCALESIM_TIMEWARP_LOGICAL_PROCESS_HPP_
+
+#include <string>
+#include <vector>
+#include <boost/shared_ptr.hpp>
+#include <boost/thread/locks.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/unordered_map.hpp>
+#include "scalesim/io.hpp"
+#include <boost/mpi.hpp>
+
+#define MAX_ZERO_LA_MSG 1000
+
+namespace scalesim {
+
+class timestamp {
+ private:
+  timestamp(const timestamp&);
+  void operator=(const timestamp&);
+  timestamp(){};
+ public:
+  timestamp(long time, long id):
+    time_(time), id_(id) {}
+ private:
+  long time_;
+  long id_;
+ public:
+  bool operator==(const timestamp& right) const {
+    if (time_ == right.time_ && id_ == right.id_) return true;
+
+    return false;
+  };
+  bool operator!=(const timestamp& right) const {
+    if (*this == right) return false;
+    return true;
+  };
+  bool operator<(const timestamp& right) const {
+    if (time_ < right.time_) { return true; }
+    if (time_ > right.time_) { return false; }
+    // time_ == right.time_
+    if (id_ < right.id_) { return true; }
+    return false;
+  };
+  bool operator>(const timestamp& right) const {
+    if (time_ > right.time_) { return true; }
+    if (time_ < right.time_) { return false; }
+    // time_ == right.time_
+    if (id_ > right.id_) { return true; }
+    return false;
+  };
+};
+
+template<class Event, class State>
+class queue {
+ public:
+  class event_q {
+    typedef boost::shared_ptr<const Event> event_ptr;
+   private:
+    event_q(const event_q&);
+    void operator=(const event_q&);
+    event_q(){};
+   public:
+    explicit event_q(long id): id_(id), released_time(0), release_cancel_time(0),
+               store_event_time(0), store_cancel_time(0),
+               min_receive_time(std::numeric_limits<long>::max()){};
+    virtual ~event_q(){ };
+   private:
+    long id_;
+    std::map<long, event_ptr> map; // sorted by receive_time * MAX_ZERO_LA_MSG
+    std::vector<std::pair<long, event_ptr> > buffer;
+    std::vector<std::pair<long, event_ptr> > cancel_buf;
+    local_store<Event>* event_db;
+    local_store<Event>* cancel_db;
+   public:
+    void init(event_ptr initial_event) {
+      buffering(initial_event);
+    };
+    void set_event_db(local_store<Event>* db) {
+      event_db = db;
+    };
+    void set_cancel_db(local_store<Event>* db) {
+      cancel_db = db;
+    };
+    long min_receive_time;
+    void buffering(event_ptr event) {
+      if (event->is_cancel()) {
+        cancel_buf.push_back(
+          std::pair<long, event_ptr>(event->receive_time()*MAX_ZERO_LA_MSG, event));
+      } else {
+        buffer.push_back(
+          std::pair<long, event_ptr>(event->receive_time()*MAX_ZERO_LA_MSG, event));
+      }
+      min_receive_time = std::min(event->receive_time()*MAX_ZERO_LA_MSG, min_receive_time);
+    };
+    long merge_buffer(std::vector<event_ptr>& cancel_events, long local_counter) {
+      // load event from DB
+      if (event_db && cancel_db && released_time > (min_receive_time / MAX_ZERO_LA_MSG) &&
+          min_receive_time != std::numeric_limits<long>::max()) {
+        boost::shared_ptr<std::vector<std::pair<long, event_ptr> > > load_event;
+        load_event = event_db->get_from(min_receive_time, id_);
+//for (typename std::vector<std::pair<long, event_ptr> >::iterator it = load_event->begin(); it != load_event->end(); ++it) {
+//  std::cout << id_<<"load from db " << it->second->id() <<":" <<it->second->receive_time()<<", ";
+//}
+//std::cout << std::endl;
+//std::cout << released_time <<"min_receive_time " << min_receive_time << " id "<< id_ << " size "<< load_event->size() << std::endl;
+        for (typename std::vector<std::pair<long, event_ptr> >::iterator it = load_event->begin();
+            it != load_event->end(); ++it) {
+          map.insert(*it);
+        }
+        released_time = min_receive_time / MAX_ZERO_LA_MSG;
+
+        boost::shared_ptr<std::vector<std::pair<long, event_ptr> > > load_cancel;
+        load_cancel = cancel_db->get_from(min_receive_time, id_);
+        for (typename std::vector<std::pair<long, event_ptr> >::iterator it = load_cancel->begin();
+            it != load_cancel->end(); ++it) {
+          cancel_map.insert(*it);
+        }
+        release_cancel_time = min_receive_time / MAX_ZERO_LA_MSG;
+      }
+      min_receive_time = std::numeric_limits<long>::max();
+
+      long lowest_event_counter = local_counter;
+      // insert event
+      typename std::vector<std::pair<long, event_ptr> >::iterator ev_it;
+      for (ev_it = buffer.begin(); ev_it != buffer.end(); ++ev_it) {
+        while (map.find(ev_it->first) != map.end()) {
+          (ev_it->first)++;
+        }
+        lowest_event_counter = std::min(lowest_event_counter, ev_it->first);
+//std::cout << id_<<"insert " << ev_it->first ;
+        map.insert(*ev_it);
+//std::cout << "size after insert " << map.size() << "id ";
+//for (typename std::map<long, event_ptr>::iterator it = map.begin(); it != map.end(); ++it) {
+//  std::cout << it->second->id() <<":" <<it->second->receive_time()<<", ";
+//}
+//std::cout << std::endl;
+      }
+
+      // annihilate event
+      typename std::vector<std::pair<long, event_ptr> >::iterator can_buf_it;
+      for (can_buf_it = cancel_buf.begin(); can_buf_it != cancel_buf.end(); ++can_buf_it) {
+        long key = can_buf_it->first;
+        int zero_la_num = 0;
+        for (zero_la_num = 0; zero_la_num < MAX_ZERO_LA_MSG;
+             ++zero_la_num) {
+          key = can_buf_it->first + zero_la_num;
+          if (map.find(key) == map.end()) continue;
+          if (*map.find(key)->second == *can_buf_it->second) {//TODO
+            break;
+          }
+        }
+        lowest_event_counter = std::min(lowest_event_counter, key);
+//std::cout << id_<<"delete " << key;
+        map.erase(key);
+//std::cout << "size is " << map.size() << "id";
+//for (typename std::map<long, event_ptr>::iterator it = map.begin(); it != map.end(); ++it) {
+//  std::cout << it->second->id() <<":" <<it->second->receive_time()<<", ";
+//}
+//std::cout << std::endl;
+      }
+
+      typename std::map<long, event_ptr>::iterator can_it;
+      for (can_it = cancel_map.lower_bound(lowest_event_counter);
+           can_it != cancel_map.end(); ++can_it) {
+        event_ptr cancel = event_ptr(new Event(*can_it->second));
+        cancel->change_cancel();
+        cancel_events.push_back(cancel);
+      }
+      cancel_map.erase(cancel_map.lower_bound(lowest_event_counter), cancel_map.end());
+      cancel_buf.clear();
+      buffer.clear();
+      return lowest_event_counter;
+    };
+
+   public:
+    event_ptr increment(long* local_counter) {
+      if (*local_counter >= std::numeric_limits<long>::max()/MAX_ZERO_LA_MSG) {
+        return event_ptr();
+      }
+      typename std::map<long, event_ptr>::iterator it;
+      it = map.lower_bound(*local_counter);
+      if (it == map.end()) {
+        *local_counter = std::numeric_limits<long>::max();
+        return event_ptr();
+      }
+      event_ptr ret = it->second;
+      ++it;
+      if (it == map.end()) {
+        *local_counter = std::numeric_limits<long>::max();
+      } else {
+        *local_counter = it->first;
+      }
+      return ret;
+    };
+
+    typedef std::pair<long, boost::shared_ptr<std::string> > output_pair;
+    typedef boost::shared_ptr<std::list<output_pair> > output_vec;
+    // <long, std::string> = <rec_time, vehicle>
+    output_vec out_put(long from, long to) {
+      output_vec ret(new std::list<output_pair>());
+      if (to == std::numeric_limits<long>::max()) {
+        for (typename std::map<long, event_ptr>::iterator it
+              = map.lower_bound(from*MAX_ZERO_LA_MSG);
+            it != map.end(); ++it) {
+          if (it->second) {
+            output_pair rec_time_vehicle_pair;
+            rec_time_vehicle_pair.first = it->second->receive_time();
+            rec_time_vehicle_pair.second = it->second->to_string();
+            ret->push_back(rec_time_vehicle_pair);
+          }
+        }
+      } else {
+        for (typename std::map<long, event_ptr>::iterator it
+              = map.lower_bound(from*MAX_ZERO_LA_MSG);
+            it != map.lower_bound(to*MAX_ZERO_LA_MSG - 1); ++it) {
+          if (it->second) {
+            output_pair rec_time_vehicle_pair;
+            rec_time_vehicle_pair.first = it->second->receive_time();
+            rec_time_vehicle_pair.second = it->second->to_string();
+            ret->push_back(rec_time_vehicle_pair);
+          }
+        }
+      }
+      return ret;
+    };
+   private:
+    long released_time;
+   public:
+    void release(long to) {
+      if (released_time >= to) {
+        return;
+      }
+      if (released_time == std::numeric_limits<long>::max()) {
+        released_time = to;
+        return;
+      }
+      if (to == std::numeric_limits<long>::max()) {
+        map.erase(map.lower_bound(released_time*MAX_ZERO_LA_MSG), map.end());
+      } else {
+        map.erase(map.lower_bound(released_time*MAX_ZERO_LA_MSG),
+                  map.lower_bound(to*MAX_ZERO_LA_MSG - 1));
+      }
+      released_time = to;
+    };
+   private:
+    long store_event_time;
+   public:
+    void store_event(long to) {
+      if (!event_db) return;
+      if (to == std::numeric_limits<long>::max()) {
+        for (typename std::map<long, event_ptr>::iterator it
+              = map.lower_bound(store_event_time*MAX_ZERO_LA_MSG);
+             it != map.end(); ++it) {
+          long key = it->first;
+          event_ptr value = it->second;
+          event_db->put(key, *value, id_);
+        }
+      } else {
+        for (typename std::map<long, event_ptr>::iterator it
+              = map.lower_bound(store_event_time*MAX_ZERO_LA_MSG);
+             it != map.lower_bound(to*MAX_ZERO_LA_MSG - 1); ++it) {
+          long key = it->first;
+          event_ptr value = it->second;
+          event_db->put(key, *value, id_);
+        }
+      }
+      store_event_time = to;
+    };
+   private:
+    std::map<long, event_ptr> cancel_map; //sorted by send_time*MAX_ZERO_LA_MSG
+   public:
+    void pop_back_cancel_events(
+        long lower_bound, std::vector<event_ptr>& cancel_events) {
+      typename std::map<long, event_ptr>::iterator it;
+      for (it = cancel_map.lower_bound(lower_bound*MAX_ZERO_LA_MSG);
+           it != cancel_map.end(); ++it) {
+        event_ptr cancel = event_ptr(new Event(*it->second));
+        cancel->change_cancel();
+        cancel_events.push_back(cancel);
+      }
+      cancel_map.erase(cancel_map.lower_bound(lower_bound*MAX_ZERO_LA_MSG), cancel_map.end());
+    };
+    void set_cancel_event(event_ptr event) {
+      event_ptr cancel = event_ptr(new Event(*event));
+      cancel->change_cancel();
+      long key = event->send_time()*MAX_ZERO_LA_MSG;
+      while (cancel_map.find(key) != cancel_map.end()) {
+        ++key;
+        if (key > (event->send_time() + 1)*MAX_ZERO_LA_MSG) {
+          std::cerr << "cancels: " << key << "!!!too many cancel_events stored at cancel_q"
+              " check MAX_ZERO_LA_MSG!!!" << std::endl;
+        }
+      }
+      cancel_map.insert(std::pair<long, event_ptr>(key, cancel));
+    };
+   private:
+    long release_cancel_time;
+   public:
+    void release_cancel(long to) {
+      if (release_cancel_time >= to) {
+        return;
+      }
+      if (release_cancel_time == std::numeric_limits<long>::max()) {
+        release_cancel_time = to;
+        return;
+      }
+      if (to == std::numeric_limits<long>::max()) {
+        cancel_map.erase(cancel_map.lower_bound(release_cancel_time*MAX_ZERO_LA_MSG),
+                         cancel_map.end());
+      } else {
+        cancel_map.erase(cancel_map.lower_bound(release_cancel_time*MAX_ZERO_LA_MSG),
+                         cancel_map.lower_bound(to*MAX_ZERO_LA_MSG - 1));
+      }
+      release_cancel_time = to;
+    };
+   private:
+    long store_cancel_time;
+   public:
+    void store_cancel(long to) {
+      if (!cancel_db) return;
+      if (to == std::numeric_limits<long>::max()) {
+        for (typename std::map<long, event_ptr>::iterator it
+              = cancel_map.lower_bound(store_cancel_time*MAX_ZERO_LA_MSG);
+             it != cancel_map.end(); ++it) {
+          long key = it->first;
+          event_ptr value = it->second;
+          cancel_db->put(key, *value, id_);
+        }
+      } else {
+        for (typename std::map<long, event_ptr>::iterator it
+              = cancel_map.lower_bound(store_cancel_time*MAX_ZERO_LA_MSG);
+             it != cancel_map.lower_bound(to*MAX_ZERO_LA_MSG - 1); ++it) {
+          long key = it->first;
+          event_ptr value = it->second;
+          cancel_db->put(key, *value, id_);
+        }
+      }
+      store_cancel_time = to;
+    };
+    void clear_buffer() {
+      buffer.clear();
+      cancel_buf.clear();
+    };
+    void reset_db(long id) {
+      event_db->reset_min_loaded_time(id);
+      cancel_db->reset_min_loaded_time(id);
+    };
+  }; // event_q
+
+  class state_q {
+    typedef boost::shared_ptr<const State> state_ptr;
+   private:
+    state_q(){};
+    state_q(const state_q&);
+    void operator=(const state_q&);
+   public:
+    explicit state_q(long id):
+      id_(id),
+      release_state_time(0),
+      store_state_time(0){};
+    virtual ~state_q(){};
+   private:
+    long id_;
+    std::map<long, state_ptr> state_map; //sorted by time*MAX_ZERO_LA_MSG //TODO
+    local_store<State>* state_store;
+   public:
+    void set_state_db(local_store<State>* db) {
+      state_store = db;
+    };
+    void push_back_state(const state_ptr state, const long time) {
+      long key = time*MAX_ZERO_LA_MSG;
+      while (state_map.find(key) != state_map.end()) {
+        ++key;
+      }
+      state_map[key] = state;
+    };
+    state_ptr get_state() {
+      typename std::map<long, state_ptr>::iterator it;
+      it = state_map.end();
+      --it;
+      return it->second;
+    };
+    void rollback(long counter) {
+      if (state_store && release_state_time > (counter / MAX_ZERO_LA_MSG) &&
+          counter != std::numeric_limits<long>::max()) {
+//std::cout << release_state_time<<"load state" << counter << "id"<< id_<<std::endl;
+        boost::shared_ptr<std::vector<std::pair<long, state_ptr> > > load_state;
+        load_state = state_store->get_from(counter, id_);
+        for (typename std::vector<std::pair<long, state_ptr> >::iterator it = load_state->begin();
+            it != load_state->end(); ++it) {
+          state_map.insert(*it);
+        }
+        release_state_time = counter / MAX_ZERO_LA_MSG;
+      }
+      typename std::map<long, state_ptr>::iterator it;
+      it = state_map.lower_bound(counter);
+      state_map.erase(it, state_map.end());
+    };
+   private:
+    long release_state_time;
+   public:
+    void release(long to) {
+      if (release_state_time >= to) {
+        return;
+      }
+      if (release_state_time == std::numeric_limits<long>::max()) {
+        release_state_time = to;
+        return;
+      }
+      if (to == std::numeric_limits<long>::max()) {
+         state_map.erase(state_map.lower_bound(release_state_time*MAX_ZERO_LA_MSG), state_map.end());
+       } else {
+         state_map.erase(state_map.lower_bound(release_state_time*MAX_ZERO_LA_MSG),
+                         state_map.lower_bound(to*MAX_ZERO_LA_MSG - 1));
+       }
+      release_state_time = to;
+    };
+   private:
+    long store_state_time;
+   public:
+    void store(long to) {
+      if (!state_store) return;
+      if (to == std::numeric_limits<long>::max()) {
+        for (typename std::map<long, state_ptr>::iterator it = state_map.lower_bound(store_state_time*MAX_ZERO_LA_MSG);
+             it != state_map.end(); ++it) {
+          long key = it->first;
+          state_ptr value = it->second;
+          state_store->put(key, *value, id_);
+        }
+      } else {
+        for (typename std::map<long, state_ptr>::iterator it = state_map.lower_bound(store_state_time*MAX_ZERO_LA_MSG);
+             it != state_map.lower_bound(to*MAX_ZERO_LA_MSG - 1); ++it) {
+          long key = it->first;
+          state_ptr value = it->second;
+          state_store->put(key, *value, id_);
+        }
+      }
+      store_state_time = to;
+    };
+    void reset_db(long id) {
+      state_store->reset_min_loaded_time(id);
+    };
+  }; // state_q
+};
+template <class Event, class State,
+          class QUEUE = queue<Event, State>
+          >
+class lp {
+  typedef boost::shared_ptr<const Event> event_ptr;
+  typedef boost::shared_ptr<const State> state_ptr;
+ private:
+  lp(const lp&);
+  void operator=(const lp&);
+ public:
+  lp():id_(0),
+                    local_counter_(std::numeric_limits<long>::max()),
+                    eventq(new typename QUEUE::event_q(0)),
+                    stateq(new typename QUEUE::state_q(0)){};
+  explicit lp(long id):
+      id_(id), local_counter_(std::numeric_limits<long>::max()),
+      eventq(new typename QUEUE::event_q(id)),
+      stateq(new typename QUEUE::state_q(id)){};
+  virtual ~lp(){
+    delete eventq;
+    delete stateq;
+  };
+ private:
+  static long min_rec_time_;
+  const long id_;
+  typename QUEUE::event_q* eventq;
+  typename QUEUE::state_q* stateq;
+  long local_counter_;
+  boost::mutex mutex_;
+ public:
+  void init_state(state_ptr state) {
+    stateq->push_back_state(state, -1);
+  };
+  void init_event(event_ptr initial_event) {
+    eventq->init(initial_event);
+  };
+  void set_event_db(scalesim::local_store<Event>* db) {
+    eventq->set_event_db(db);
+  };
+  void set_cancel_db(scalesim::local_store<Event>* db) {
+    eventq->set_cancel_db(db);
+  };
+  void set_state_db(scalesim::local_store<State>* db) {
+    stateq->set_state_db(db);
+  };
+  /**
+   * @brief thread_safe
+   */
+  void enqueue_buffer(event_ptr event) {
+    boost::lock_guard<boost::mutex> guard(mutex_);
+    min_rec_time_ = std::min(event->receive_time(), min_rec_time_);
+    eventq->buffering(event);
+  };
+  void insert_buffered_events(std::vector<event_ptr>& cancels) {
+    boost::lock_guard<boost::mutex> guard(mutex_);
+    local_counter_ = eventq->merge_buffer(cancels, local_counter_);
+    stateq->rollback(local_counter_);
+  };
+  event_ptr dequeue_event() {
+    return eventq->increment(&local_counter_);
+  };
+  state_ptr get_state() {
+    return stateq->get_state();
+  };
+  void set_cancel(event_ptr original_event) {
+    eventq->set_cancel_event(original_event);
+  };
+  void update_state(state_ptr state, long time) {
+    stateq->push_back_state(state, time);
+  };
+  /**
+   * if there is no event to process, the local_time is LONG_MAX
+   */
+  long local_time() {
+    if (local_counter_ >= std::numeric_limits<long>::max()/MAX_ZERO_LA_MSG) {
+      return std::numeric_limits<long>::max();
+    }
+    return local_counter_/MAX_ZERO_LA_MSG;
+  };
+  long lp_id() const {
+    return id_;
+  };
+  boost::shared_ptr<std::list<std::pair<long, boost::shared_ptr<std::string> > > >
+  out_put(long from, long to) {
+    return eventq->out_put(from, to);
+  };
+  void release_event(long to) {
+    eventq->release(to);
+    eventq->release_cancel(to);
+  };
+  void release_state(long to) {
+    stateq->release(to);
+  };
+  void store_event(long to) {
+    eventq->store_event(to);
+    eventq->store_cancel(to);
+  };
+  void store_state(long to) {
+    stateq->store(to);
+  };
+  void release_buffer() {
+    eventq->clear_buffer();
+  };
+  void insert_repeat_event(event_ptr event) {
+    enqueue_buffer(event);
+  };
+  void reset_db(long id) {
+    eventq->reset_db(id);
+    stateq->reset_db(id);
+  }
+  static long min_rec_time() {
+    return min_rec_time_;
+  };
+  static void reset_min_rec_time() {
+    min_rec_time_ = std::numeric_limits<long>::max();
+  };
+};
+template <class Event, class State, class QUEUE>
+long lp<Event, State, QUEUE>::min_rec_time_
+  = std::numeric_limits<long>::max();
+
+template <class Event, class State,
+          class QUEUE = queue<Event, State>
+          >
+class lp_mngr {
+  typedef boost::shared_ptr<const Event> event_ptr;
+  typedef boost::shared_ptr<const State> state_ptr;
+  typedef lp<Event, State, QUEUE> lp;
+  typedef boost::shared_ptr<lp> lp_ptr;
+  typedef boost::shared_ptr<std::vector<long> > vector_long_ptr;
+  typedef boost::unordered_multimap<long, long> multi_hash_long_long;
+  typedef boost::shared_ptr<multi_hash_long_long> multi_hash_long_long_ptr;
+  typedef boost::unordered_map<long, lp_ptr> hash_long_lp;
+ public:
+  class analysis {
+   public:
+    analysis(): output_counter_(0){};
+    virtual ~analysis() {};
+   private:
+    long output_counter_;
+   public:
+    long output_counter() const { return output_counter_; };
+    void count_output(long count) { output_counter_ += count; };
+  };
+ private:
+  lp_mngr(const lp_mngr&);
+  void operator=(const lp_mngr&);
+  lp_mngr(): outputted_time(0) {};
+ public:
+  virtual ~lp_mngr(){};
+ private:
+  vector_long_ptr partition_;
+  multi_hash_long_long_ptr partition_index;
+  hash_long_lp logical_processes; // <key, value> = <id, lp>
+  scalesim::local_store<Event>* local_event_store_;
+  scalesim::local_store<Event>* local_cancel_store_;
+  scalesim::local_store<State>* local_state_store_;
+  analysis analysis_;
+ public:
+  analysis analysis() {
+    return analysis_;
+  };
+  /**
+   * This method is thread unsafe in older GCC.
+   */
+  static lp_mngr& instance() {
+    static lp_mngr instance_;
+    return instance_;
+  };
+  bool init_partition (std::pair<vector_long_ptr, multi_hash_long_long_ptr> parti) {
+    partition_ = parti.first;
+    partition_index = parti.second;
+    return true;
+  };
+  bool init_events (boost::shared_ptr<std::vector<event_ptr> > events) {
+    for (typename std::vector<event_ptr>::iterator it = events->begin();
+        it != events->end(); ++it) {
+      get_lp((*it)->destination())->init_event(*it);
+    }
+    return true;
+  };
+  bool init_states (boost::shared_ptr<std::vector<state_ptr> > states) {
+    for (typename std::vector<state_ptr>::iterator it = states->begin();
+        it != states->end(); ++it) {
+      get_lp((*it)->id())->init_state(*it);
+    }
+    return true;
+  };
+  /**
+   * It must be invoked after init_parititon
+   */
+  bool init_lps(int this_rank, int rank_size) {
+    if (partition_index->size() == 0) {
+      return false;
+    }
+    std::pair<multi_hash_long_long::iterator, multi_hash_long_long::iterator> range
+      = partition_index->equal_range(this_rank);
+    for (multi_hash_long_long::iterator it = range.first;
+         it != range.second; ++it) {
+      logical_processes[it->second] = lp_ptr(new lp(it->second));
+    }
+    return true;
+  };
+  void set_dbs(int this_rank) {
+    local_event_store_ = new local_store<Event>("event", this_rank);
+    local_cancel_store_ = new local_store<Event>("cancel", this_rank);
+    local_state_store_ = new local_store<State>("state", this_rank);
+    for (typename hash_long_lp::iterator it = logical_processes.begin();
+        it != logical_processes.end(); ++it) {
+       it->second->set_event_db(local_event_store_);
+       it->second->set_cancel_db(local_cancel_store_);
+       it->second->set_state_db(local_state_store_);
+    }
+  };
+  void delete_db() {
+    delete local_event_store_;
+    delete local_cancel_store_;
+    delete local_state_store_;
+  };
+  lp_ptr get_lp(long id) {
+    return logical_processes[id];
+  };
+  vector_long_ptr partition() {
+    return partition_;
+  };
+  hash_long_lp& get_lps () {
+     return logical_processes;
+  };
+  void insert_repeat_event(event_ptr event) {
+    get_lp(event->destination())->insert_repeat_event(event);
+  };
+  typedef std::pair<long, boost::shared_ptr<std::string> > output_pair;
+  typedef boost::shared_ptr<std::list<output_pair> > output_list;
+ private:
+  long outputted_time;
+ public:
+  output_list out_put_result(long from, long to) {
+    if (outputted_time > to) return output_list();
+    output_list ret(new std::list<output_pair>);
+    long output_count = 0;
+    for (typename hash_long_lp::iterator it = logical_processes.begin();
+        it != logical_processes.end(); ++it) {
+       output_count += it->second->out_put(outputted_time, to)->size();
+       ret->merge(*it->second->out_put(outputted_time, to));
+    }
+    analysis_.count_output(output_count);
+    outputted_time = to;
+    return ret;
+  };
+  void reset_out_put() {
+    outputted_time = 0;
+  };
+  void release_older_event(long time) {
+    for (typename hash_long_lp::iterator it = logical_processes.begin();
+        it != logical_processes.end(); ++it) {
+      it->second->release_event(time);
+    }
+  };
+  void store_event(long time) {
+    for (typename hash_long_lp::iterator it = logical_processes.begin();
+        it != logical_processes.end(); ++it) {
+      it->second->store_event(time);
+    }
+  };
+  void release_older_state(long time) {
+    for (typename hash_long_lp::iterator it = logical_processes.begin();
+        it != logical_processes.end(); ++it) {
+      it->second->release_state(time);
+    }
+  };
+  void store_state(long time) {
+    for (typename hash_long_lp::iterator it = logical_processes.begin();
+        it != logical_processes.end(); ++it) {
+      it->second->store_state(time);
+    }
+  };
+};
+
+} // namespace scalesim
+
+#endif /* SCALESIM_TIMEWARP_LP_HPP_ */
