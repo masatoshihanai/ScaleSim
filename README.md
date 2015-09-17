@@ -61,7 +61,7 @@ For repeat execution, use `--diff_repeat` option.
 $ mpirun -np 4 ./build/TrafficSim --sim_id=999 --store_dir="./tmp" --diff_repeat \   
                  ./traffic/ring/part/graph.part.4 \
                  ./traffic/ring/rd.sim.csv \
-                 ./traffic/ring/trip.csv  
+                 ./traffic/ring/add_ev.csv  
 ```
 ### Test
 
