@@ -208,7 +208,7 @@ class traffic_sim: public scalesim::application {
       vector<int> num_lanes(MAX_NUM_ROAD_PER_CP);
       vector<long> road_length(MAX_NUM_ROAD_PER_CP);
       int road_index = 0;
-      for (vector<string>::iterator road_it = cp.begin();
+      for (auto road_it = cp.begin();
           road_it != cp.end(); ++road_it) {
         if (road_index > MAX_NUM_ROAD_PER_CP) {
           cerr << "# of roads per junction is BIGGER than MAX_NUM_ROAD_PER_CP in " << id << std::endl;

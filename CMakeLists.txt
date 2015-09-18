@@ -117,8 +117,7 @@ else ()
 endif ()  
 
 ### Include file ### 
-include_directories (
-    ~/include . include/ src/ ${CMAKE_CURRENT_BINARY_DIR}/include )
+include_directories (. /usr/local/include include src test ${CMAKE_CURRENT_BINARY_DIR}/include )
 
 ### Compile own include files ###
 add_library (scalelib STATIC

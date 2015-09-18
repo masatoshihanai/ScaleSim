@@ -15,8 +15,8 @@ ScaleSim provides **_Exact-Differential_** execution, proposed in
 - `gtest`, `glog`, `gflags`,
 
 #### Tested version
-- `Open MPI` 1.8.8
-- `boost` 1.57.0
+- `Open MPI` 1.8.8 (MPI 3.0), 1.10.0 (MPI 3.0)
+- `boost` 1.57.0, 1.58.0
 - `leveldb` 1.18, `snappy` 1.1.3
 - `gtest` 1.7.0, `glog` 0.3.3, `gflags` 2.1.2
 
