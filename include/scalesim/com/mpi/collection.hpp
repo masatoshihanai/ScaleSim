@@ -174,7 +174,7 @@ void mpi_collection<App>::shuffle_event() {
     for (int i = 0; i < max_buf_size; ++i) {
       if (in_bufs[rank*max_buf_size + i].id() == -1) break;
       shuffle_ev_ret_->push_back(
-          boost::make_shared<event<App> >(event<App>(in_bufs[rank + i])));
+          boost::make_shared<event<App> >(event<App>(in_bufs[rank*max_buf_size + i])));
     }
   }
 }
