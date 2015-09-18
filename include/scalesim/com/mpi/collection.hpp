@@ -1,10 +1,4 @@
 /*
-
- *
- *  Created on: Jul 29, 2015
- *      Author: masahanai
- */
-/*
  * collection.hpp
  *
  *  Copyright (c) 2015 Masatoshi Hanai
