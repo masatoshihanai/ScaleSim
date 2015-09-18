@@ -159,8 +159,7 @@ target_link_libraries (TrafficSim
     scalelib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${GLOG} ${GFLAGS}) 
 
 ### TEST file ###
-add_executable (TEST
-    test/main.cc)
+add_executable (TEST test/main.cc)
 target_link_libraries (TEST
     scalelib scale_testlib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${GLOG} ${GFLAGS} ${GTEST} ${GTEST_MAIN})
 
