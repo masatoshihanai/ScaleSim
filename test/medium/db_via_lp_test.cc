@@ -37,10 +37,11 @@ class db_via_lp_medium: public ::testing::Test {
 
   static pair<parti_ptr, parti_indx_ptr> partition_() {
     pair<parti_ptr, parti_indx_ptr>
-      ret(parti_ptr(new std::vector<long>()),
-          parti_indx_ptr(new boost::unordered_multimap<long, long>()));
-    graph_reader reader;
-    reader.read("traffic/ring/part/graph.part.9", ret.first, ret.second);
+        ret(parti_ptr(new std::vector<long>()),
+            parti_indx_ptr(new boost::unordered_multimap<long, long>()));
+    scalesim::test_app::graph_read("traffic/ring/part/graph.part.9",
+                                   ret.first,
+                                   ret.second);
     return ret;
   };
 };

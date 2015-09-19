@@ -16,15 +16,36 @@ namespace scalesim {
 
 class test_app: public scalesim::application {
  public:
-  typedef boost::shared_ptr<std::vector<long> > vec_ptr;
-  typedef boost::shared_ptr<boost::unordered_multimap<long, long> > hash_ptr;
-  std::pair<vec_ptr, hash_ptr> partition() {
-    std::pair<vec_ptr, hash_ptr>
-      ret(vec_ptr(new std::vector<long>()),
-          hash_ptr(new boost::unordered_multimap<long, long>()));
-    scalesim::graph_reader reader;
-    reader.read("input/traffic/test/ring/partition/trafficgraph.part.4",
-        ret.first, ret.second);
+  test_app(){};
+  virtual ~test_app(){};
+
+ public:
+  static void graph_read(const std::string& file_path,
+                         parti_ptr partition,
+                         parti_indx_ptr partition_index) {
+    std::ifstream ifstream(file_path.c_str());
+    if (ifstream.fail()) {
+      ifstream.close();
+      return;
+    }
+    std::string line;
+    long id = 0;
+    while (getline(ifstream, line)) {
+      long partitionNum = atol(line.c_str());
+      partition_index->insert(std::pair<long, long>(partitionNum, id));
+      partition->push_back(partitionNum);
+      id++;
+    }
+    ifstream.close();
+  };
+
+  std::pair<parti_ptr, parti_indx_ptr> partition() {
+    std::pair<parti_ptr, parti_indx_ptr>
+        ret(parti_ptr(new std::vector<long>()),
+            parti_indx_ptr(new boost::unordered_multimap<long, long>()));
+    graph_read("input/traffic/test/ring/partition/trafficgraph.part.4",
+               ret.first,
+               ret.second);
     return ret;
   };
 

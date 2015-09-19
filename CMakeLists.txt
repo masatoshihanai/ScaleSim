@@ -154,7 +154,9 @@ add_library (scale_testlib STATIC
     test/test_app.hpp)
 
 ### Traffic simulation ###
-add_executable (TrafficSim ./src/trafficsim/main_trafficsim.cc)
+add_executable (TrafficSim 
+    ./src/trafficsim/main_trafficsim.cc)
+
 target_link_libraries (TrafficSim
     scalelib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${GLOG} ${GFLAGS}) 
 

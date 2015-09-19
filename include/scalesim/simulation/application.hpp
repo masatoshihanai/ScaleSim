@@ -11,10 +11,19 @@
 #define SCALESIM_SIMULATION_APPLICATION_HPP_
 
 #include <limits>
+#include "scalesim/util.hpp"
 
 namespace scalesim {
 
 class application {
+ private:
+  application(const application&);
+  void operator=(const application&);
+
+ protected:
+  application(){};
+  virtual ~application(){};
+
  public:
   /*
    * Interval between communications
@@ -35,7 +44,6 @@ class application {
    * For instance, when a machine has 4 cores, 5 (4 core + 1) is effective.
    */
   static int thr_pool_size () { return 1; };
-
 
   /*
    * Simulation finishes when global time >= finish_time().

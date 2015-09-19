@@ -33,6 +33,8 @@ class runner {
  private:
   runner(){};
   virtual ~runner(){};
+  runner(const runner&);
+  void operator=(const runner&);
 
  private:
   int simulation();
@@ -143,7 +145,8 @@ void runner<App>::init() {
    st_vec<App> states;
    app_.init_states_in_this_rank(states,
                                  event_com<App>::instance()->rank(),
-                                 event_com<App>::instance()->rank_size());
+                                 event_com<App>::instance()->rank_size(),
+                                 lp_mngr<App>::instance()->partition());
    for (auto it = states.begin(); it != states.end(); ++it) {
      lp<App>* lp_;
      lp_mngr<App>::instance()->get_lp(lp_, (*it)->id());

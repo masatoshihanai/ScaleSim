@@ -7,6 +7,7 @@ tmp/
 tools/
 
 traffic/*
+!traffic/README.md
 !traffic/grid
 !traffic/ring
 

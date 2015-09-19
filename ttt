@@ -1,0 +1,3 @@
+--------------------------------------------------------------------------
+mpirun noticed that process rank 1 with PID 73881 on node masatoshi exited on signal 11 (Segmentation fault: 11).
+--------------------------------------------------------------------------
