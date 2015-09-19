@@ -131,7 +131,7 @@ void runner<App>::init() {
 
    /* initiate logical processes */
    LOG_IF(INFO, event_com<App>::instance()->rank() == 0) << "Initiate lps";
-   lp_mngr<App>::instance()->init_partition(app_.partition_index());
+   lp_mngr<App>::instance()->init_partition(app_.init_partition_index());
    lp_mngr<App>::instance()->init_lps(event_com<App>::instance()->rank(),
                                       event_com<App>::instance()->rank_size());
 
@@ -303,7 +303,7 @@ void runner<App>::init_repeat() {
 
   /* initiate logical processes */
   LOG_IF(INFO, event_com<App>::instance()->rank() == 0) << "Initiate lps";
-  lp_mngr<App>::instance()->init_partition(app_.partition_index());
+  lp_mngr<App>::instance()->init_partition(app_.init_partition_index());
   lp_mngr<App>::instance()->init_lps(event_com<App>::instance()->rank(),
                                      event_com<App>::instance()->rank_size());
   stopwatch::instance("InitApp")->stop();
@@ -488,7 +488,9 @@ void runner<App>::run_lp_aggr(lp<App>* lp_, thr_pool* thr_pool) {
     lp_->get_state(state);
     boost::optional<std::pair<ev_ptr<App>, st_ptr<App> > >
       update = app_.event_handler(event, state);
-    if (update) {
+    if (!update || update->first->receive_time() > App::finish_time()) {
+      break;
+    } else { /* update ==  true */
       lp_->set_cancel(update->first);
       timestamp tmstp(update->first->send_time(), update->first->id());
       lp_->update_state(update->second, tmstp);

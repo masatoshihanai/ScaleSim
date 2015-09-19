@@ -12,9 +12,9 @@
 #include <boost/serialization/serialization.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/make_shared.hpp>
+#include <glog/logging.h>
 #include "scalesim/simulation.hpp"
 #include "scalesim/util.hpp"
-#include <glog/logging.h>
 
 //FIXME !!! in the case over 1000, message truncate has occur !!!
 #define MAX_PATH_LENGTH 200
@@ -81,6 +81,7 @@ class traffic_sim: public scalesim::application {
     long end() const { return path_tracks[track_length - 1]; };
     long receive_time() const { return arrival_time; };
     long send_time() const { return departure_time; };
+
     friend class boost::serialization::access;
    private:
     template<class Archive>
@@ -94,17 +95,16 @@ class traffic_sim: public scalesim::application {
       ar & base_;
     }
   }; /* class event */
-  typedef boost::shared_ptr<const traffic_sim::Event> event_ptr;
-  typedef boost::shared_ptr<vector<event_ptr> > events_ptr;
 
-  class State : public scalesim::sim_state { // a state represents a cross point with outgoing road
-    friend class traffic_sim;
+  /* a state represents a cross point with outgoing road */
+  class State : public scalesim::sim_state {
+     friend class traffic_sim;
    private:
     long id_;
     vector<long> destinations_;
-    vector<long> speed_limit_; // km / hour
+    vector<long> speed_limit_; /* km per hour */
     vector<int> num_lanes_;
-    vector<long> road_length_; // m
+    vector<long> road_length_; /* m */
    public:
     State(): id_(-1){};
     virtual ~State() {};
@@ -133,9 +133,7 @@ class traffic_sim: public scalesim::application {
       ar & num_lanes_;
       ar & road_length_;
     }
-  }; // class state
-  typedef boost::shared_ptr<const traffic_sim::State> state_ptr;
-  typedef boost::shared_ptr<vector<state_ptr> > state_vec;
+  }; /* class State */
 
  private:
   parti_ptr partition_;
@@ -143,32 +141,28 @@ class traffic_sim: public scalesim::application {
 
  public:
   static long finish_time() {
-    return 1000;
-  //  return 10800;
-  //  return 21600; // 6hours
-  //  return 1000000;
+    return 3600;      /*  1 hours */
+  //  return 10800;   /*  3 hours */
+  //  return 21600;   /*  6 hours */
+  //  return 86400;   /* 24 hours */
   //  return std::numeric_limits<long>::max();
   };
-  static string partition_path() {
-    return TRAFFIC_PARTITION_PATH;
-  };
 
-  void init() {
-    partition_ = parti_ptr(new vector<long>()),
-    index_ = parti_indx_ptr(new boost::unordered_multimap<long, long>());
+  void init() {};
+
+  pair<parti_ptr, parti_indx_ptr> init_partition_index() {
+    partition_ = boost::make_shared<vector<long> >(vector<long>()),
+    index_ = boost::make_shared<boost::unordered_multimap<long, long> >(
+                 boost::unordered_multimap<long, long>());
     scalesim::graph_reader reader;
     reader.read(TRAFFIC_PARTITION_PATH, partition_, index_);
-  };
-
-  pair<parti_ptr, parti_indx_ptr> partition_index() {
     return pair<parti_ptr, parti_indx_ptr>(partition_, index_);
   };
 
   void init_events(ev_vec<traffic_sim>& ret,int rank, int rank_size) {
     scalesim::event_reader reader;
     reader.read(SCENARIO_PATH, rank, rank_size);
-    for (vector<string>::iterator it = reader.events().begin();
-        it != reader.events().end(); ++it) {
+    for (auto it = reader.events().begin(); it != reader.events().end(); ++it) {
       vector<string> line;
       boost::split(line, *it, boost::is_any_of(","));
       long vehicle_id = atol(line[1].c_str());
@@ -192,13 +186,9 @@ class traffic_sim: public scalesim::application {
   };
 
   void init_states_in_this_rank(st_vec<traffic_sim>& new_state, int rank, int rank_size) {
-    parse_state(new_state, rank, rank_size, this->partition_);
-  };
-
-  void parse_state(st_vec<traffic_sim>& new_state, int rank, int rank_size, parti_ptr parti) {
     scalesim::state_reader reader;
-    reader.read(TRAFFIC_MAP_PATH, rank, rank_size, parti);
-    for (vector<pair<long, string> >::iterator cp_it = reader.states().begin();
+    reader.read(TRAFFIC_MAP_PATH, rank, rank_size, partition_);
+    for (auto cp_it = reader.states().begin();
         cp_it != reader.states().end(); ++cp_it) {
       vector<string> cp;
       boost::split(cp, cp_it->second, boost::is_any_of(";"));
@@ -226,7 +216,7 @@ class traffic_sim: public scalesim::application {
         }
         ++road_index;
       }
-      new_state.push_back(state_ptr(new State(id, destinations,
+      new_state.push_back(st_ptr<traffic_sim>(new State(id, destinations,
           speed_limit, num_lanes,road_length)));
     }
   };
@@ -392,8 +382,8 @@ class traffic_sim: public scalesim::application {
     } /* while (std::getline(ifstream_, line)) */
   };
 
-  boost::optional<pair<event_ptr, state_ptr> >
-  event_handler(event_ptr receive_event, state_ptr state) {
+  boost::optional<pair<ev_ptr<traffic_sim>, st_ptr<traffic_sim> > >
+  event_handler(ev_ptr<traffic_sim> receive_event, st_ptr<traffic_sim> state) {
     long new_path_tracks[MAX_PATH_LENGTH];
     int new_track_counter = receive_event->track_counter + 1;
     int new_track_length = std::min(receive_event->track_length, MAX_PATH_LENGTH);
@@ -403,11 +393,11 @@ class traffic_sim: public scalesim::application {
     long new_depature_time = receive_event->arrival_time;
 
     long new_arrival_time;
-    //find the iterator of road to the destination
+    /* find the iterator of road to the destination */
     vector<long> new_destinations = state->destinations_;
-    for(vector<long>::iterator it = new_destinations.begin();
-        it != new_destinations.end(); ++it) {
-      // road destination == vehicle destination
+    for(auto it = new_destinations.begin();
+             it != new_destinations.end(); ++it) {
+      /* road destination == vehicle destination */
       if (*it == new_path_tracks[new_track_counter]) {
         int i = distance(new_destinations.begin(), it);
         if (state->speed_limit_[i] != 0) {
@@ -422,20 +412,20 @@ class traffic_sim: public scalesim::application {
       }
     }
 
-    event_ptr new_event(new traffic_sim::Event(receive_event->vehicle_id,
+    ev_ptr<traffic_sim> new_event(new traffic_sim::Event(receive_event->vehicle_id,
       new_arrival_time, new_depature_time, new_path_tracks,
       new_track_counter, new_track_length));
 
-    state_ptr new_state(new traffic_sim::State(state->id_,
+    st_ptr<traffic_sim> new_state(new traffic_sim::State(state->id_,
       state->destinations_, state->speed_limit_, state->num_lanes_,
       state->road_length_));
 
     if (new_track_counter >= new_track_length) {
-      return boost::optional<pair<event_ptr, state_ptr> >();
+      return boost::optional<pair<ev_ptr<traffic_sim>, st_ptr<traffic_sim> > >();
     }
 
-    return boost::optional<pair<event_ptr, state_ptr> > (
-        pair<event_ptr, state_ptr>(new_event, new_state));
+    return boost::optional<pair<ev_ptr<traffic_sim>, st_ptr<traffic_sim> > > (
+        pair<ev_ptr<traffic_sim>, st_ptr<traffic_sim> >(new_event, new_state));
   };
 };
 
