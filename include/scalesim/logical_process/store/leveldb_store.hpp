@@ -152,7 +152,6 @@ void leveldb_store<Object>::put(const timestamp& time, const long id,
   /* put object */
   leveldb::Slice db_key((char*) &key[0], key.size());
   leveldb::Status s = db->Put(leveldb::WriteOptions(), db_key, obj_binary);
-std::cout << "put "; value.result_out(); std::cout << std::endl;
   if (!s.ok()) { std::cout << s.ToString() << std::endl; }
 };
 
