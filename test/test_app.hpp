@@ -10,6 +10,7 @@
 #ifndef TEST_APP_CC_
 #define TEST_APP_CC_
 
+#include <fstream>
 #include "scalesim/simulation.hpp"
 
 namespace scalesim {

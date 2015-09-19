@@ -9,7 +9,6 @@
  */
 #include "scalesim/util/flags.hpp"
 #include "scalesim/util/message_counter.hpp"
-#include "scalesim/util/reader.hpp"
 #include "scalesim/util/stopwatch.hpp"
 #include "scalesim/util/thread_manager.hpp"
 #include "scalesim/util/timestamp.hpp"

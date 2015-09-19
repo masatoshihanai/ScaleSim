@@ -70,14 +70,6 @@ else ()
     message (STATUS "snappy NG")
 endif ()
 
-#find_library (BERKELEY_DB NAMES db_cxx
-#    PATHS ~/lib . ./lib ${CMAKE_CURRENT_BINARY_DIR}/lib)
-#if (BERKELEY_DB)
-#    message (STATUS "Berkeley_DB ${BERKELEY_DB} ${Color}ok${ColorReset}")
-#else ()
-#    message (STATUS "Berkeley_DB NG")
-#endif ()
-
 find_library (GTEST NAMES gtest
     PATHS ~/lib . ./lib ${CMAKE_CURRENT_BINARY_DIR}/lib)
 if (GTEST)
@@ -142,7 +134,6 @@ add_library (scalelib STATIC
     include/scalesim/util.hpp
     include/scalesim/util/flags.hpp
     include/scalesim/util/message_counter.hpp
-    include/scalesim/util/reader.hpp
     include/scalesim/util/stopwatch.hpp
     include/scalesim/util/thread_manager.hpp
     include/scalesim/util/timestamp.hpp

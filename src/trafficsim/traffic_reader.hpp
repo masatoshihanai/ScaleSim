@@ -11,6 +11,7 @@
 #ifndef TRAFFICSIM_TRAFFIC_READER_HPP_
 #define TRAFFICSIM_TRAFFIC_READER_HPP_
 
+#include <fstream>
 #include <string>
 #include <vector>
 #include <boost/algorithm/string.hpp>
