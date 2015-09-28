@@ -33,7 +33,7 @@ class scheduler {
   virtual ~scheduler(){};
 
  private:
-  std::map<timestamp, long> ltsf_queue_;
+  std::map<timestamp, long> ltsf_queue_;        /* <timestamp, lp id> */
   boost::unordered_map<long, timestamp> index_; /* <lp id, timestamp> */
   boost::unordered_set<long> active_lp_;
   boost::mutex mutex_;
