@@ -130,6 +130,7 @@ class traffic_sim: public scalesim::application {
       ar & road_length_;
     }
   }; /* class State */
+
  public:
   /*
    * Return finish time of the simulation

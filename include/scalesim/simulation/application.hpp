@@ -26,24 +26,29 @@ class application {
 
  public:
   /*
-   * Interval between communications
-   * The comm_interval means # of processing events between communications.
+   * Interval between global synchronizations
+   * The return value means # of processing logical processes before next global synchronization.
    */
-  static int comm_interval() { return 3; };
+  static int gsync_interval() { return 100; };
+
+  /*
+   * Interval between switching logical processes in event processing.
+   * The return value means # of dequeue events before switching next logical process.
+   */
+  static int switch_lp_interval() { return 2; };
 
   /*
    * Interval between second cut and next first cut
-   * The global_interval is a interval size between global virtual time.
    * Too small value causes wrong results because of events in send buffer.
    */
-  static int gsync_interval() { return 5; };
+  static int global_cut_interval() { return 20; };
 
   /*
-   * # of thread pool size
+   * # of thread
    * The effective # is (# of processors) + 1.
    * For instance, when a machine has 4 cores, 5 (4 core + 1) is effective.
    */
-  static int thr_pool_size () { return 1; };
+  static int num_thr () { return 4; };
 
   /*
    * Simulation finishes when global time >= finish_time().

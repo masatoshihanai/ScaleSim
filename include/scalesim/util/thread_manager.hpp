@@ -26,10 +26,12 @@ class thr_pool {
   thr_pool();
   thr_pool(const thr_pool&);
   void operator=(const thr_pool&);
+  const int pool_size_;
  public:
-  explicit thr_pool(const int pool_size): num_active_thr(0) {
+  explicit thr_pool(const int pool_size): num_active_thr(0),
+                                          pool_size_(pool_size) {
     work_.reset(new boost::asio::io_service::work(io_service_));
-    for (int i = 0; i < pool_size; ++i) {
+    for (int i = 0; i < pool_size_; ++i) {
       thread_group_.create_thread(
           boost::bind(static_cast<size_t (boost::asio::io_service::*)()>
               (&boost::asio::io_service::run), &io_service_));

@@ -36,6 +36,7 @@ class eventq {
       min_loaded_ev_time_(timestamp::max()),
       released_cn_time_(timestamp::zero()), stored_cn_time_(timestamp::zero()),
       min_loaded_can_time_(timestamp::max()),
+      outputted_time_(timestamp::zero()),
       std_out_count_(counter::instance("OutputtedEvent")) {};
   virtual ~eventq(){ };
 
@@ -45,6 +46,7 @@ class eventq {
   std::vector<std::pair<timestamp, ev_ptr<App> > > buffer_;
   timestamp released_time_, stored_ev_time_, min_loaded_ev_time_;
   timestamp released_cn_time_, stored_cn_time_, min_loaded_can_time_;
+  timestamp outputted_time_;
   counter* std_out_count_;
 
  public:
@@ -57,7 +59,7 @@ class eventq {
   int size_can_queue() { return can_map_.size(); };
   void release(const timestamp& to);
   void release_cancel(const timestamp& to);
-  void std_out(const timestamp& from, const timestamp& to);
+  void std_out(const timestamp& to);
 
   /* for initial exact-diff simulation */
   void store_event(const timestamp& to);
@@ -79,7 +81,6 @@ void eventq<App>::buffering(const ev_ptr<App>& ev) {
 template<class App>
 timestamp eventq<App>::merge_buffer(ev_vec<App>& new_cancels) {
   timestamp min_stmp = timestamp::max();
-
   /* insert events to queue from buffer */
   for (auto ev_it = buffer_.begin(); ev_it != buffer_.end(); ++ev_it) {
     if (ev_it->second->is_cancel()) {
@@ -151,7 +152,8 @@ void eventq<App>::set_cancel(const ev_ptr<App>& ev) {
 template<class App>
 void eventq<App>::release(const timestamp& to) {
   /* release events */
-  DLOG_ASSERT(released_time_ < to) << "Global time: " << to.time()
+  DLOG_ASSERT(released_time_ < to || released_time_ == to)
+      << "Global time: " << to.time()
       << " is lower than released time: " << released_time_.time();
   map_.erase(map_.lower_bound(released_time_), map_.lower_bound(to));
   released_time_ = to;
@@ -160,7 +162,8 @@ void eventq<App>::release(const timestamp& to) {
 template<class App>
 void eventq<App>::release_cancel(const timestamp& to) {
   /* release cancels */
-  DLOG_ASSERT(released_cn_time_ < to) << "Global time: " << to.time()
+  DLOG_ASSERT(released_time_ < to || released_time_ == to)
+      << "Global time: " << to.time()
       << " is lower than released time: " << released_cn_time_.time();
   can_map_.erase(can_map_.lower_bound(released_cn_time_), can_map_.lower_bound(to));
   released_cn_time_ = to;
@@ -191,11 +194,13 @@ void eventq<App>::store_cancel(const timestamp& to) {
 };
 
 template <class App>
-void eventq<App>::std_out(const timestamp& from, const timestamp& to) {
-  for (auto it = map_.lower_bound(from); it != map_.lower_bound(to); ++it) {
+void eventq<App>::std_out(const timestamp& to) {
+  for (auto it = map_.lower_bound(outputted_time_); it != map_.lower_bound(to);
+       ++it) {
     it->second->result_out();
     ++(*std_out_count_);
   }
+  outputted_time_ = to;
 };
 
 template<class App>
@@ -277,7 +282,8 @@ void stateq<App>::rollback_state(const timestamp& lower_bound) {
 
 template<class App>
 void stateq<App>::release(const timestamp& to) {
-  DLOG_ASSERT(released_st_time < to) << "Global time: " << to.time()
+  DLOG_ASSERT(released_st_time < to || released_st_time == to)
+      << " Global time: " << to.time()
       << " is lower than released time: " << released_st_time.time();
   state_map.erase(state_map.lower_bound(released_st_time),
       state_map.lower_bound(to));
@@ -286,7 +292,8 @@ void stateq<App>::release(const timestamp& to) {
 
 template<class App>
 void stateq<App>::store_state(const timestamp& to) {
-  DLOG_ASSERT(stored_st_time < to) << "Global time: " << to.time()
+  DLOG_ASSERT(released_st_time < to || released_st_time == to)
+      << "Global time: " << to.time()
       << " is lower than stored time: " << stored_st_time.time();
   for (auto it = state_map.lower_bound(stored_st_time);
        it != state_map.lower_bound(to); ++it) {

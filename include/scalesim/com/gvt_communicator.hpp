@@ -17,7 +17,7 @@ class gvt_com {
  private:
   gvt_com(const gvt_com&);
   void operator=(const gvt_com&);
- private:
+ public:
   gvt_com(): global_time_(timestamp::zero()),
              global_time_prev(timestamp::zero()){};
   virtual ~gvt_com(){};
@@ -25,16 +25,6 @@ class gvt_com {
   timestamp global_time_;
   timestamp global_time_prev;
  public:
-  static gvt_com<App>* instance() {
-    static gvt_com<App>* instance_;
-    if (!instance_) { instance_ = new gvt_com; }
-    return instance_;
-  }
-  static void del_instance() {
-    gvt_com<App>* instance_ = instance();
-    if (instance_) { delete instance_; }
-  }
-
   void update_local_min(const timestamp& local_min);
   bool check_updated();
   void increment_gsync_interval();

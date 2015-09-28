@@ -997,15 +997,6 @@ TEST_F (lp_test_medium, enqueue_1000_events_per_thr_from_100_threads) {
 
 class lp_mngr_test_mediuml: public ::testing::Test {
  protected:
-  static void SetUpTestCase() {
-    scalesim::lp_mngr<test_app>::instance()->init_partition(partition_());
-    scalesim::lp_mngr<test_app>::instance()->init_lps(0, 1);
-  };
-
-  static void TearDownTestCase() {
-    scalesim::lp_mngr<test_app>::instance()->delete_lps(0);
-  };
-
   static pair<parti_ptr, parti_indx_ptr> partition_() {
     pair<parti_ptr, parti_indx_ptr>
         ret(parti_ptr(new std::vector<long>()),
@@ -1018,14 +1009,17 @@ class lp_mngr_test_mediuml: public ::testing::Test {
 };
 
 TEST_F (lp_mngr_test_mediuml, get_lp) {
-  scalesim::lp_mngr<test_app>* lp_manager
-    = scalesim::lp_mngr<test_app>::instance();
+  scalesim::lp_mngr<test_app> lp_manager_;
+  lp_manager_.init_partition(partition_());
+  lp_manager_.init_lps(0, 1);
 
   lp<test_app>* lp0;
-  lp_manager->get_lp(lp0, 0);
+  lp_manager_.get_lp(lp0, 0);
   EXPECT_EQ(0, lp0->id());
 
   lp<test_app>* lp9;
-  lp_manager->get_lp(lp9, 9);
+  lp_manager_.get_lp(lp9, 9);
   EXPECT_EQ(9, lp9->id());
+
+  lp_manager_.delete_lps(0);
 }

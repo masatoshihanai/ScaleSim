@@ -18,17 +18,19 @@ using namespace std;
 
 class db_via_lp_medium: public ::testing::Test {
  protected:
+  static lp_mngr<test_app> lp_mngr_;
+ protected:
   static void SetUpTestCase() {
     FLAGS_diff_init = true;
     FLAGS_store_dir = "tmp_db_via_lp_medium";
     FLAGS_store_ip = "localhost";
 
-    lp_mngr<test_app>::instance()->init_partition(partition_());
-    lp_mngr<test_app>::instance()->init_lps(0, 1);
+    lp_mngr_.init_partition(partition_());
+    lp_mngr_.init_lps(0, 1);
   };
 
   static void TearDownTestCase() {
-    lp_mngr<test_app>::instance()->delete_lps(0);
+    lp_mngr_.delete_lps(0);
     store<test_app>::clear();
     FLAGS_store_dir = "";
     FLAGS_store_ip = "";
@@ -46,6 +48,7 @@ class db_via_lp_medium: public ::testing::Test {
   };
 };
 
+lp_mngr<test_app> db_via_lp_medium::lp_mngr_;
 
 TEST_F(db_via_lp_medium, put_get_event_via_logical_process) {
   long lp_id_ = 0;
@@ -62,7 +65,7 @@ TEST_F(db_via_lp_medium, put_get_event_via_logical_process) {
 
   /* insert events from 0 to 99 */
   lp<test_app>* lp_;
-  lp_mngr<test_app>::instance()->get_lp(lp_, lp_id_);
+  lp_mngr_.get_lp(lp_, lp_id_);
   for (long i = 0; i < num_event; ++i) {
     lp_->buffer(events_[i]);
   }

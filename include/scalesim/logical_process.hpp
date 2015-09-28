@@ -8,6 +8,7 @@
  *
  */
 #include "logical_process/logical_process.hpp"
+#include "logical_process/process_scheduler.hpp"
 #include "logical_process/queue.hpp"
 #include "logical_process/store/berkeleydb_store.hpp"
 #include "logical_process/store/leveldb_store.hpp"

@@ -73,11 +73,13 @@ void mpi_sender<App>::async_send() {
     change_buffer();
   }
   while (!send_events_->empty()) {
+    stopwatch::instance("PartiToPartiCommunication")->start();
     /* send event */
     requests_.push_back(comm_world_->isend(send_events_->begin()->first,
                                            0,
                                            *send_events_->begin()->second));
     send_events_->erase(send_events_->begin());
+    stopwatch::instance("PartiToPartiCommunication")->stop();
   }
 };
 
@@ -127,10 +129,12 @@ class mpi_receiver {
 template<class App>
 void mpi_receiver<App>::async_receive() {
   if (comm_world_->iprobe()) {
+    stopwatch::instance("PartiToPartiCommunication")->start();
     rec_events_.push_back(event<App>());
     requests_.push_back(comm_world_->irecv(boost::mpi::any_source,
                                            0,
                                            rec_events_.back()));
+    stopwatch::instance("PartiToPartiCommunication")->stop();
   }
 };
 
@@ -140,6 +144,7 @@ void mpi_receiver<App>::check_receive(
   typename std::vector<boost::mpi::request>::iterator it;
   while ((it = boost::mpi::test_some(requests_.begin(), requests_.end()) )
              != requests_.end()) {
+    stopwatch::instance("PartiToPartiCommunication")->start();
     int index = it - requests_.begin();
     ev_ptr<App> receive_event
         = boost::make_shared<event<App> >(rec_events_[index]);
@@ -153,6 +158,7 @@ void mpi_receiver<App>::check_receive(
     }
     rec_events_.erase(rec_events_.begin() + index);
     requests_.erase(it);
+    stopwatch::instance("PartiToPartiCommunication")->stop();
   }
 };
 

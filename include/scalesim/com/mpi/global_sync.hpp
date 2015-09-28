@@ -99,14 +99,18 @@ void mpi_gsync<App>::check_sync() {
    * The global_interval is a interval size between global virtual time.
    * Too small value causes wrong results because of events in send buffer.
    */
-  if (processing_ev_interval_ < App::gsync_interval()) { return; }
+  if (processing_ev_interval_ < App::global_cut_interval()) { return; }
 
   /* make first cut (change RED from WHITE) */
-  if (!is_red_) { is_red_ = true; return; }
+  if (!is_red_) {
+    is_red_ = true;
+    return;
+  }
 
   /* make second cut */
   if (is_red_) {
     boost::lock_guard<boost::mutex> guard(mutex_);
+    stopwatch::instance("GlobalSync")->start();
 
     /* checking WHITE transit messages for making second cut */
     if (reduce_white_transit_num() <= 0) {
@@ -131,6 +135,7 @@ void mpi_gsync<App>::check_sync() {
       /* reset local_min_ */
       local_min_ = timestamp::null();
     }
+    stopwatch::instance("GlobalSync")->stop();
   }
 };
 

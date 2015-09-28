@@ -14,12 +14,14 @@
 #include <string>
 #include <vector>
 #include <cassert>
+#include <boost/atomic.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/thread/locks.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/unordered_map.hpp>
 #include <gflags/gflags.h>
 #include "scalesim/logical_process/queue.hpp"
+#include "scalesim/logical_process/process_scheduler.hpp"
 #include "scalesim/logical_process/store/store_base.hpp"
 #include "scalesim/util.hpp"
 
@@ -33,34 +35,30 @@ class lp {
  public:
   lp():id_(0),
        local_time_(timestamp::max()),
-       buf_min_time_(timestamp::max()),
-       eventq_(new eventq<App>(0)),
-       stateq_(new stateq<App>(0)),
+       eventq_(0),
+       stateq_(0),
        event_counter_(counter::instance("Events")),
        cancel_counter_(counter::instance("Cancels")){};
   explicit lp(long id):
        id_(id),
        local_time_(timestamp::max()),
-       buf_min_time_(timestamp::max()),
-       eventq_(new eventq<App>(id)),
-       stateq_(new stateq<App>(id)),
+       eventq_(id),
+       stateq_(id),
        event_counter_(counter::instance("Events")),
        cancel_counter_(counter::instance("Cancels")){};
-  virtual ~lp() {
-    if (eventq_) { delete eventq_; }
-    if (stateq_) { delete stateq_; }
-  };
+  virtual ~lp() {};
  private:
+  static std::vector<scheduler<App> >* scheduler_;
   const long id_;
   timestamp local_time_;
-  timestamp buf_min_time_;
-  eventq<App>* eventq_;
-  stateq<App>* stateq_;
+  eventq<App> eventq_;
+  stateq<App> stateq_;
   boost::mutex mutex_;
   counter* event_counter_;
   counter* cancel_counter_;
 
  public:
+  static void init_scheduler(std::vector<scheduler<App> >* scheduler);
   void init_state(const st_ptr<App>& state);
   void init_event(const ev_ptr<App>& initial_event);
   timestamp local_time() const;
@@ -73,7 +71,7 @@ class lp {
   void update_state(const st_ptr<App>& state, const timestamp& time);
   void clear_old_ev(const timestamp& to);
   void clear_old_st(const timestamp& to);
-  void std_out(const timestamp& from, const timestamp& to);
+  void std_out(const timestamp& to);
 
   /* for repeating what-if simulation */
   void init_state(const st_ptr<App>& state, const timestamp& time);
@@ -83,14 +81,22 @@ class lp {
                        const timestamp& time);
   void delete_ev(const timestamp& time);
   void delete_can(const timestamp& time);
-};
+}; /* class lp */
 
 template<class App>
 using logical_processes = boost::unordered_map<long, lp<App>*>;
 
 template<class App>
+std::vector<scheduler<App> >* lp<App>::scheduler_ = NULL;
+
+template<class App>
+void lp<App>::init_scheduler(std::vector<scheduler<App> >* scheduler) {
+  if (!scheduler_) { scheduler_ = scheduler; }
+};
+
+template<class App>
 void lp<App>::init_state(const st_ptr<App>& state)
-  { stateq_->push_back_state(state, timestamp::null()); };
+  { stateq_.push_back_state(state, timestamp::null()); };
 
 template<class App>
 void lp<App>::init_event(const ev_ptr<App>& initial_event)
@@ -98,7 +104,7 @@ void lp<App>::init_event(const ev_ptr<App>& initial_event)
 
 template<class App>
 timestamp lp<App>::local_time() const
-  { return std::min(local_time_, buf_min_time_); };
+  { return local_time_; }
 
 template<class App>
 long lp<App>::id() const { return id_; };
@@ -107,24 +113,29 @@ long lp<App>::id() const { return id_; };
 template<class App>
 void lp<App>::buffer(const ev_ptr<App>& event) {
   boost::lock_guard<boost::mutex> guard(mutex_);
-  eventq_->buffering(event);
-  buf_min_time_
-      = std::min(buf_min_time_, timestamp(event->receive_time(), event->id()));
+  eventq_.buffering(event);
+
+  timestamp new_time_(event->receive_time(), event->id());
+  local_time_ = std::min(local_time_, new_time_);
+
+  if (scheduler_) {
+    (*scheduler_)[scheduler<App>::local_parti(id_, scheduler_->size())]
+                  .queue(local_time_, id_);
+  }
 };
 
 template<class App>
 void lp<App>::flush_buf(std::vector<ev_ptr<App>>& new_cancels) {
   boost::lock_guard<boost::mutex> guard(mutex_);
   if (FLAGS_diff_repeat) {
-    const timestamp from = std::min(buf_min_time_, local_time_);
     /* load event and cancel */
     ev_vec<App> load_events_;
-    load_events(load_events_, from);
+    load_events(load_events_, local_time_);
     for (auto it = load_events_.begin(); it != load_events_.end(); ++it) {
-      eventq_->buffering(*it);
+      eventq_.buffering(*it);
     }
     ev_vec<App> load_cancels_;
-    load_cancels(load_cancels_, from);
+    load_cancels(load_cancels_, local_time_);
     for (auto it = load_cancels_.begin(); it != load_cancels_.end(); ++it) {
       set_cancel(*it);
     }
@@ -132,110 +143,100 @@ void lp<App>::flush_buf(std::vector<ev_ptr<App>>& new_cancels) {
     /* load state */
     st_ptr<App> load_state_;
     timestamp load_tmstmp_;
-    load_prev_state(load_state_, load_tmstmp_, from);
+    load_prev_state(load_state_, load_tmstmp_, local_time_);
     if (load_state_) { init_state(load_state_, load_tmstmp_); }
   }
 
-  timestamp lower_bound_ = eventq_->merge_buffer(new_cancels);
-  stateq_->rollback_state(lower_bound_);
+  local_time_ = std::min(local_time_, eventq_.merge_buffer(new_cancels));
+  stateq_.rollback_state(local_time_);
 
-  local_time_ = std::min(lower_bound_, local_time_);
-  buf_min_time_ = timestamp::max();
   (*cancel_counter_) += new_cancels.size();
 };
 
 template<class App>
 void lp<App>::dequeue_event(ev_ptr<App>& new_ev) {
-  eventq_->increment(new_ev, &local_time_);
+  boost::lock_guard<boost::mutex> guard(mutex_);
+  eventq_.increment(new_ev, &local_time_);
   if (new_ev) { ++(*event_counter_); }
 };
 
 template<class App>
 void lp<App>::get_state(st_ptr<App>& new_state)
-  { stateq_->get_state(new_state); };
+  { stateq_.get_state(new_state); };
 
 template<class App>
 void lp<App>::set_cancel(const ev_ptr<App>& original_event)
-  { eventq_->set_cancel(original_event); };
+  { eventq_.set_cancel(original_event); };
 
 template<class App>
 void lp<App>::update_state(const st_ptr<App>& state, const timestamp& time)
-  { stateq_->push_back_state(state, time); };
+  { stateq_.push_back_state(state, time); };
 
 template<class App>
 void lp<App>::clear_old_ev(const timestamp& to) {
   if (FLAGS_diff_init) {
-    eventq_->store_event(to);
-    eventq_->store_cancel(to);
+    eventq_.store_event(to);
+    eventq_.store_cancel(to);
   }
-  eventq_->release(to);
-  eventq_->release_cancel(to);
+  eventq_.release(to);
+  eventq_.release_cancel(to);
 };
 
 template<class App>
 void lp<App>::clear_old_st(const timestamp& to) {
   if (FLAGS_diff_init) {
-    stateq_->store_state(to);
+    stateq_.store_state(to);
   }
-  stateq_->release(to);
+  stateq_.release(to);
 };
 
 template<class App>
-void lp<App>::std_out(const timestamp& from, const timestamp& to)
-  { eventq_->std_out(from, to); };
+void lp<App>::std_out(const timestamp& to)
+  { eventq_.std_out(to); };
 
 template<class App>
 void lp<App>::init_state(const st_ptr<App>& state, const timestamp& time)
-  { stateq_->push_back_state(state, time); };
+  { stateq_.push_back_state(state, time); };
 
 template<class App>
 void lp<App>::load_events(ev_vec<App>& events, const timestamp& from)
-  { eventq_->load_events(events, from); };
+  { eventq_.load_events(events, from); };
 
 template<class App>
 void lp<App>::load_cancels(ev_vec<App>& cancels, const timestamp& from)
-  { eventq_->load_cancels(cancels, from); };
+  { eventq_.load_cancels(cancels, from); };
 
 template<class App>
 void lp<App>::load_prev_state(st_ptr<App>& new_state, timestamp& time_of_state,
                               const timestamp& time)
-  { stateq_->load_prev_st(new_state, time_of_state, time); };
+  { stateq_.load_prev_st(new_state, time_of_state, time); };
 
 template<class App>
 void lp<App>::delete_ev(const timestamp& tmstmp)
-  { eventq_->delete_ev(tmstmp); };
+  { eventq_.delete_ev(tmstmp); };
 
 template<class App>
 void lp<App>::delete_can(const timestamp& tmstmp)
-  { eventq_->delete_can(tmstmp); };
+  { eventq_.delete_can(tmstmp); };
 
 template <class App>
 class lp_mngr {
  private:
   lp_mngr(const lp_mngr&);
   void operator=(const lp_mngr&);
-  lp_mngr(){};
  public:
+  lp_mngr(){};
   virtual ~lp_mngr(){};
  private:
   parti_ptr partition_;
   parti_indx_ptr partition_index;
   logical_processes<App> lps_; /* <kay, value> = <lp_id, lp> */
  public:
-  static lp_mngr<App>* instance() {
-    static lp_mngr<App>* instance_;
-    if (!instance_) { instance_ = new lp_mngr<App>; }
-    return instance_;
-  };
-  static void del_instance() {
-    lp_mngr<App>* instance_ = lp_mngr<App>::instance();
-    if (instance_) { delete instance_; instance_ = 0; }
-  };
-
   logical_processes<App>& get_lps () { return lps_; };
 
   void init_partition (const std::pair<parti_ptr, parti_indx_ptr>& parti);
   void init_lps(int this_rank, int rank_size);
+  void init_scheduler(std::vector<scheduler<App> >* scheduler);
   void delete_lps(int this_rank);
   void get_lp(lp<App>*& lp, long id);
   parti_ptr partition();
@@ -270,6 +271,10 @@ void lp_mngr<App>::init_lps(int this_rank, int rank_size) {
     store<App>::init_read(this_rank);
   }
 };
+
+template<class App>
+void lp_mngr<App>::init_scheduler(std::vector<scheduler<App> >* scheduler)
+  { lp<App>::init_scheduler(scheduler); };
 
 template<class App>
 void lp_mngr<App>::delete_lps(int this_rank) {

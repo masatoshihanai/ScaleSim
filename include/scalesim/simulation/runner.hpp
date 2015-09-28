@@ -30,8 +30,14 @@ template <class App>
 class runner {
  private:
   App app_;
+  event_com<App> com_;
+  gvt_com<App> gvt_;
+  lp_mngr<App> lp_mngr_;
+  thr_pool pool;
+  std::vector<scheduler<App> > schedulers_;
  private:
-  runner(){};
+  runner(): pool(App::num_thr()),
+            schedulers_(App::num_thr()){};
   virtual ~runner(){};
   runner(const runner&);
   void operator=(const runner&);
@@ -41,12 +47,12 @@ class runner {
 
   void init();
   void init_repeat();
+  void loop();
   void finish();
 
-  void run_lp_aggr(lp<App>* lp_, thr_pool* thr_pool);
-  void clear_old_ev_st(lp<App>* lp, thr_pool* pool, const timestamp& time);
-  void store_old_ev_st(lp<App>* lp, thr_pool* pool, const timestamp& time);
-  void output(const timestamp& from, const timestamp& to);
+  void run(int scheduler_id);
+  void run_lp_aggr(lp<App>* lp);
+  void clear(int scheduler_id, const timestamp& time);
 
  public:
   static void init_main(int* argc, char** argv[]);
@@ -61,53 +67,9 @@ int runner<App>::simulation() {
     init();
   }
 
-  thr_pool pool(App::thr_pool_size());
-
-  LOG_IF(INFO, event_com<App>::instance()->rank() == 0) << "Start Simulation";
+  LOG_IF(INFO, com_.rank() == 0) << "Start Simulation";
   stopwatch::instance("Simulation")->start();
-  while (true) {
-    /* processing events with threads */
-    stopwatch::instance("EventProcessing")->start();
-    for (auto it = lp_mngr<App>::instance()->get_lps().begin();
-        it != lp_mngr<App>::instance()->get_lps().end(); ++it) {
-      pool.post(boost::bind(&runner::run_lp_aggr, this, it->second, &pool));
-      // pool.enqueue(boost::bind(&sim_runner::run_lp_lazy, this, it->second));
-    }
-    pool.wait_all();
-
-    stopwatch::instance("EventProcessing")->stop();
-
-    /* compute local minimum time */
-    timestamp local_min_time_ = timestamp::max();
-    for (auto it = lp_mngr<App>::instance()->get_lps().begin();
-        it != lp_mngr<App>::instance()->get_lps().end(); ++it) {
-      local_min_time_ = std::min(local_min_time_, it->second->local_time());
-    }
-    gvt_com<App>::instance()->update_local_min(local_min_time_);
-    gvt_com<App>::instance()->increment_gsync_interval();
-
-    if (gvt_com<App>::instance()->check_updated()) {
-      /* output result */
-      output(gvt_com<App>::instance()->gtime_prev(), gvt_com<App>::instance()->gtime());
-
-      /* clear event and state */
-      for (auto it = lp_mngr<App>::instance()->get_lps().begin();
-           it != lp_mngr<App>::instance()->get_lps().end(); ++it) {
-        pool.post(boost::bind(&runner::clear_old_ev_st,
-                              this,
-                              it->second,
-                              &pool,
-                              gvt_com<App>::instance()->gtime()));
-      }
-      pool.wait_all();
-    }
-
-    /* finish */
-    if (gvt_com<App>::instance()->gtime().time() >= App::finish_time()) {
-      break;
-    }
-  } /* while loop */
-
+  loop();
   stopwatch::instance("Simulation")->stop();
 
   finish();
@@ -122,39 +84,39 @@ void runner<App>::init() {
    app_.init();
 
    /* initiate communication manager */
-   event_com<App>::instance()->init(lp_mngr<App>::instance());
+   com_.init(&lp_mngr_);
 
-   LOG_IF(INFO, event_com<App>::instance()->rank() == 0)
+   LOG_IF(INFO, com_.rank() == 0)
        << "Initiate application";
-   LOG_IF(INFO, event_com<App>::instance()->rank() == 0)
+   LOG_IF(INFO, com_.rank() == 0)
        << "Initiate lp manager";
-   LOG_IF(INFO, event_com<App>::instance()->rank() == 0)
+   LOG_IF(INFO, com_.rank() == 0)
        << "Initiate com  manager";
 
    /* initiate logical processes */
-   LOG_IF(INFO, event_com<App>::instance()->rank() == 0) << "Initiate lps";
-   lp_mngr<App>::instance()->init_partition(app_.init_partition_index());
-   lp_mngr<App>::instance()->init_lps(event_com<App>::instance()->rank(),
-                                      event_com<App>::instance()->rank_size());
+   LOG_IF(INFO, com_.rank() == 0) << "Initiate lps";
+   lp_mngr_.init_partition(app_.init_partition_index());
+   lp_mngr_.init_lps(com_.rank(),com_.rank_size());
+   lp_mngr_.init_scheduler(&schedulers_);
 
    stopwatch::instance("InitApp")->stop();
 
    /* initiate state */
    stopwatch::instance("InitState")->start();
-   LOG_IF(INFO, event_com<App>::instance()->rank() == 0) << "Initiate states";
+   LOG_IF(INFO, com_.rank() == 0) << "Initiate states";
    st_vec<App> states;
    app_.init_states_in_this_rank(states,
-                                 event_com<App>::instance()->rank(),
-                                 event_com<App>::instance()->rank_size(),
-                                 lp_mngr<App>::instance()->partition());
+                                 com_.rank(),
+                                 com_.rank_size(),
+                                 lp_mngr_.partition());
    for (auto it = states.begin(); it != states.end(); ++it) {
      lp<App>* lp_;
-     lp_mngr<App>::instance()->get_lp(lp_, (*it)->id());
+     lp_mngr_.get_lp(lp_, (*it)->id());
      lp_->init_state(*it);
    }
    bool wait = true;
    long sum_states = 0;
-   event_com<App>::instance()->reduce_sum(wait, sum_states, states.size());
+   com_.reduce_sum(wait, sum_states, states.size());
    while (wait);
 
    long byte_state = sizeof(state<App>);
@@ -162,26 +124,23 @@ void runner<App>::init() {
 
    /* initiate events */
    stopwatch::instance("InitEvent")->start();
-   LOG_IF(INFO, event_com<App>::instance()->rank() == 0) << "Initiate events";
+   LOG_IF(INFO, com_.rank() == 0) << "Initiate events";
 
    /* parse local event */
    ev_vec<App> parsed_events;
    app_.init_events(parsed_events,
-                    event_com<App>::instance()->rank(),
-                    event_com<App>::instance()->rank_size());
+                    com_.rank(),
+                    com_.rank_size());
 
    /* send to target lp */
    ev_vec<App> initial_events;
    bool sh_wait = true;
-   event_com<App>::instance()->shuffle(sh_wait,
-                                       initial_events,
-                                       parsed_events,
-                                       lp_mngr<App>::instance()->partition());
+   com_.shuffle(sh_wait, initial_events, parsed_events, lp_mngr_.partition());
    while (sh_wait);
 
    for (auto it = initial_events.begin(); it != initial_events.end(); ++it) {
      lp<App>* lp_;
-     lp_mngr<App>::instance()->get_lp(lp_, (*it)->destination());
+     lp_mngr_.get_lp(lp_, (*it)->destination());
      lp_->init_event(*it);
    }
 
@@ -189,15 +148,15 @@ void runner<App>::init() {
    long byte_events = sizeof(event<App>);
    long sum_events;
    bool rd_wait = true;
-   event_com<App>::instance()->reduce_sum(rd_wait, sum_events, num_events);
+   com_.reduce_sum(rd_wait, sum_events, num_events);
    while (rd_wait);
    stopwatch::instance("InitEvent")->stop();
 
    /* input data information */
-   LOG_IF(INFO, event_com<App>::instance()->rank() == 0)
+   LOG_IF(INFO, com_.rank() == 0)
      << "\n====================================================================\n"
-     << " Number of partitions: " << event_com<App>::instance()->rank_size() << "\n"
-     << " Thread pool size: " << App::thr_pool_size() << "\n\n"
+     << " Number of partitions: " << com_.rank_size() << "\n"
+     << " Number of threads: " << App::num_thr() << "\n\n"
      << " Total initial events size " << (sum_events * byte_events) << " byte\n"
      << "     Total events num: " << sum_events << "\n"
      << "     One event size: " << byte_events << " byte\n"
@@ -212,81 +171,8 @@ void runner<App>::init() {
      << "    Init events time: " << stopwatch::instance("InitEvent")->time_ms() << " ms\n"
      << "    Init states time: " << stopwatch::instance("InitState")->time_ms() << " ms\n"
      << "====================================================================\n";
-   event_com<App>::instance()->start();
+   com_.start();
 }; /* init() */
-
-template <class App>
-void runner<App>::finish() {
-  gvt_com<App>::del_instance();
-  event_com<App>::instance()->stop();
-
-  bool wait = true;
-  event_com<App>::instance()->barrier(wait);
-  while (wait);
-
-  /* Sum up event processing elapsed time in all ranks */
-  long ev_prcss_time_sum = 0;
-  event_com<App>::instance()->reduce_sum(wait,
-                                         ev_prcss_time_sum,
-                                         stopwatch::instance("EventProcessing")
-                                             ->time_ms());
-  while (wait);
-  /* Sum up # of processing events */
-  long num_ev_prcss_sum = 0;
-  event_com<App>::instance()->reduce_sum(wait,
-                                         num_ev_prcss_sum,
-                                         counter::sum("Events"));
-  while (wait);
-  /* Sum up # of cancel events */
-  long num_cancel_sum = 0;
-  event_com<App>::instance()->reduce_sum(wait,
-                                         num_cancel_sum,
-                                         counter::sum("Cancels"));
-  while (wait);
-  /* Sum up # of outputted events */
-  long num_output_events_sum = 0;
-  event_com<App>::instance()->reduce_sum(wait,
-                                         num_output_events_sum,
-                                         counter::sum("OutputtedEvent"));
-  while (wait);
-  /* Sum up Memory usage of Event */
-  long mem_usage_ev_sum = 0;
-  int size_ev_ = sizeof(event<App>);
-  event_com<App>::instance()->reduce_sum(wait,
-                                         mem_usage_ev_sum,
-                                         size_ev_ * counter::sum("Events"));
-  while (wait);
-  LOG_IF(INFO, event_com<App>::instance()->rank() == 0) << "Finish Simulation";
-  LOG_IF(INFO, event_com<App>::instance()->rank() == 0)
-    << "\n====================================================================\n"
-    << " Simulation time: " << stopwatch::instance("Simulation")->time_ms() << " ms\n"
-    << "     Total Event Processing Elapsed time       : " << ev_prcss_time_sum / event_com<App>::instance()->rank_size() << " ms\n"
-    << "     Average Event Processing Elapsed time     : " << ((float) ev_prcss_time_sum) / ((float) num_output_events_sum) / ((float) event_com<App>::instance()->rank_size())<< " ms/event \n"
-    << "     Partition to Partition Communication time : " << " ms/partition \n"
-    << "     Global Synchronization time               : " << " ms/partition \n\n"
-    << " # of Global synchronizations   : " << counter::sum("GVT") << "\n"
-    << " # of Processing Events         : " << num_ev_prcss_sum << "\n"
-    << " # of Cancels (= # of Rollback) : " << num_cancel_sum << "\n"
-    << " # of Outputted Events          : " << num_output_events_sum << "\n\n"
-    << " Approximate total memory usage           : " << "\n"
-    << "     Approximate memory usage for events  : " << mem_usage_ev_sum << " byte \n"
-    << "     Approximate memory usage for cancels : " << "\n"
-    << "     Approximate memory usage for states  : " << "\n\n"
-    << " Approximate total store usage       : " << "\n"
-    << "     Approximate store events usage  : " << "\n"
-    << "     Approximate store cancels usage : " << "\n"
-    << "     Approximate store states usage  : " << "\n"
-    << "====================================================================\n";
-  wait = true;
-  event_com<App>::instance()->barrier(wait);
-  while (wait);
-
-  int rank_  = event_com<App>::instance()->rank();
-  event_com<App>::instance()->finish();
-  event_com<App>::del_instance();
-  lp_mngr<App>::instance()->delete_lps(rank_);
-  lp_mngr<App>::del_instance();
-}; /* finish() */
 
 template<class App>
 void runner<App>::init_repeat() {
@@ -295,38 +181,34 @@ void runner<App>::init_repeat() {
   app_.init();
 
   /* initiate communication manager */
-  event_com<App>::instance()->init(lp_mngr<App>::instance());
+  com_.init(&lp_mngr_);
 
-  LOG_IF(INFO, event_com<App>::instance()->rank() == 0)
+  LOG_IF(INFO, com_.rank() == 0)
       << "Initiate application";
-  LOG_IF(INFO, event_com<App>::instance()->rank() == 0)
+  LOG_IF(INFO, com_.rank() == 0)
       << "Initiate lp manager";
-  LOG_IF(INFO, event_com<App>::instance()->rank() == 0)
+  LOG_IF(INFO, com_.rank() == 0)
       << "Initiate event communicator ";
 
   /* initiate logical processes */
-  LOG_IF(INFO, event_com<App>::instance()->rank() == 0) << "Initiate lps";
-  lp_mngr<App>::instance()->init_partition(app_.init_partition_index());
-  lp_mngr<App>::instance()->init_lps(event_com<App>::instance()->rank(),
-                                     event_com<App>::instance()->rank_size());
+  LOG_IF(INFO, com_.rank() == 0) << "Initiate lps";
+  lp_mngr_.init_partition(app_.init_partition_index());
+  lp_mngr_.init_lps(com_.rank(), com_.rank_size());
+  lp_mngr_.init_scheduler(&schedulers_);
+
   stopwatch::instance("InitApp")->stop();
 
   /* initiate what-if event & state */
   stopwatch::instance("InitWhatIf")->start();
-  LOG_IF(INFO, event_com<App>::instance()->rank() == 0)
+  LOG_IF(INFO, com_.rank() == 0)
       << "Initiate what-if events & states";
   std::vector<boost::shared_ptr<const what_if<App> > > parsed_what_ifs_;
-  app_.init_what_if(parsed_what_ifs_,
-                    event_com<App>::instance()->rank(),
-                    event_com<App>::instance()->rank_size());
+  app_.init_what_if(parsed_what_ifs_, com_.rank(), com_.rank_size());
 
   /* shuffle what_if query */
   bool wait_ = true;
   std::vector<boost::shared_ptr<const what_if<App> > > what_ifs_;
-  event_com<App>::instance()->shuffle(wait_,
-                                      what_ifs_,
-                                      parsed_what_ifs_,
-                                      lp_mngr<App>::instance()->partition());
+  com_.shuffle(wait_, what_ifs_, parsed_what_ifs_, lp_mngr_.partition());
   while(wait_);
 
   long num_events = 0; long num_states = 0;
@@ -334,7 +216,7 @@ void runner<App>::init_repeat() {
     if ((*it_wi_)->update_state_.id() != -1) {
       /* initiate state */
       lp<App>* lp_;
-      lp_mngr<App>::instance()->get_lp(lp_, (*it_wi_)->lp_id_);
+      lp_mngr_.get_lp(lp_, (*it_wi_)->lp_id_);
       timestamp tmstmp_((*it_wi_)->time_, 0);
       st_ptr<App> init_state_
           = boost::make_shared<state<App> >((*it_wi_)->update_state_);
@@ -360,7 +242,7 @@ void runner<App>::init_repeat() {
     if ((*it_wi_)->delete_event_id_ != -1) {
       /* decide lp and time of what-if the query */
       lp<App>* lp_;
-      lp_mngr<App>::instance()->get_lp(lp_, (*it_wi_)->lp_id_);
+      lp_mngr_.get_lp(lp_, (*it_wi_)->lp_id_);
       timestamp tmstmp_((*it_wi_)->time_, (*it_wi_)->delete_event_id_);
 
       /* load and initiate events and cancels */
@@ -391,7 +273,7 @@ void runner<App>::init_repeat() {
     if ((*it_wi_)->add_event_.id() != -1) {
       /* decide lp and time */
       lp<App>* lp_;
-      lp_mngr<App>::instance()->get_lp(lp_, (*it_wi_)->lp_id_);
+      lp_mngr_.get_lp(lp_, (*it_wi_)->lp_id_);
       timestamp tmstmp_((*it_wi_)->time_, (*it_wi_)->add_event_.id());
 
       /* load and initiate events */
@@ -411,6 +293,7 @@ void runner<App>::init_repeat() {
       ev_ptr<App> init_event_
           = boost::make_shared<event<App> >((*it_wi_)->add_event_);
       lp_->init_event(init_event_);
+      timestamp time_(init_event_->receive_time(), init_event_->id());
       ++num_events;
 
       /* load previous state */
@@ -425,22 +308,22 @@ void runner<App>::init_repeat() {
   int byte_state = sizeof(state<App>);
   bool wait = true;
   long sum_states = 0;
-  event_com<App>::instance()->reduce_sum(wait, sum_states, num_states);
+  com_.reduce_sum(wait, sum_states, num_states);
   while (wait);
 
   int byte_events = sizeof(event<App>);
   long sum_events;
   wait = true;
-  event_com<App>::instance()->reduce_sum(wait, sum_events, num_events);
+  com_.reduce_sum(wait, sum_events, num_events);
   while (wait);
 
   stopwatch::instance("InitWhatIf")->stop();
 
   /* input data information */
-  LOG_IF(INFO, event_com<App>::instance()->rank() == 0)
+  LOG_IF(INFO, com_.rank() == 0)
     << "\n====================================================================\n"
-    << " Number of partitions: " << event_com<App>::instance()->rank_size() << "\n"
-    << " Thread pool size: " << App::thr_pool_size() << "\n\n"
+    << " Number of partitions: " << com_.rank_size() << "\n"
+    << " Number of Threads: " << App::num_thr() << "\n\n"
     << " Total initial events size " << (sum_events * byte_events) << " byte\n"
     << "     Total events num: " << sum_events << "\n"
     << "     One event size: " << byte_events << " byte\n"
@@ -456,30 +339,156 @@ void runner<App>::init_repeat() {
     << "    Init states time: " << stopwatch::instance("InitState")->time_ms() << " ms\n"
     << "====================================================================\n";
 
-  event_com<App>::instance()->start();
+  com_.start();
 }; /* init_repeat() */
 
 template<class App>
-void runner<App>::output(const timestamp& from, const timestamp& to) {
-  timestamp fin_time(App::finish_time(), 0);
-  timestamp to_ = std::min(to, fin_time);
-  for (auto it = lp_mngr<App>::instance()->get_lps().begin();
-       it != lp_mngr<App>::instance()->get_lps().end(); ++it) {
-    it->second->std_out(from, to_);
+void runner<App>::loop() {
+  while (true) {
+    /* processing events with threads */
+    stopwatch::instance("EventProcessing")->start();
+    for (int i = 0; i < schedulers_.size(); ++i) {
+      pool.post(boost::bind(&runner<App>::run, this, i));
+    }
+    pool.wait_all();
+    stopwatch::instance("EventProcessing")->stop();
+
+    /* compute minimum local time */
+    timestamp local_min_time_ = timestamp::max();
+    for (auto it = schedulers_.begin(); it != schedulers_.end(); ++it) {
+      local_min_time_ = std::min(local_min_time_, it->min_locals());
+    }
+    gvt_.update_local_min(local_min_time_);
+    gvt_.increment_gsync_interval();
+
+    if (gvt_.check_updated()) {
+      /* output results */
+      for (int i = 0; i < schedulers_.size(); ++i) {
+        for (auto it = schedulers_[i].active_lp()->begin();
+             it != schedulers_[i].active_lp()->end(); ++it) {
+          lp<App>* lp_;
+          lp_mngr_.get_lp(lp_, *it);
+          lp_->std_out(std::min(gvt_.gtime(), timestamp(App::finish_time(),0)));
+        }
+      }
+
+      /* clear(store) events/states */
+      stopwatch::instance("Clear")->start();
+      for (int i = 0; i < schedulers_.size(); ++i) {
+        pool.post(boost::bind(&runner<App>::clear, this, i, gvt_.gtime()));
+      }
+      pool.wait_all();
+      stopwatch::instance("Clear")->stop();
+    }
+
+    /* finish */
+    if (gvt_.gtime().time() >= App::finish_time()) {
+      break;
+    }
+  } /* while loop */
+}; /* loop() */
+
+template <class App>
+void runner<App>::finish() {
+  com_.stop();
+
+  bool wait = true;
+  com_.barrier(wait);
+  while (wait);
+
+  /* Sum up event processing elapsed time in all ranks */
+  long ev_prcss_time_sum = 0;
+  com_.reduce_sum(wait, ev_prcss_time_sum,
+                  stopwatch::instance("EventProcessing")->time_ms());
+  while (wait);
+  /* Sum up communication time */
+  long communication_time_ = 0;
+  com_.reduce_sum(wait, communication_time_,
+                  stopwatch::instance("PartiToPartiCommunication")->time_ms());
+  while (wait);
+  /* Sum up gloabl synchronization time */
+  long global_sync_time_ = 0;
+  com_.reduce_sum(wait, global_sync_time_,
+                  stopwatch::instance("GlobalSync")->time_ms());
+  while(wait);
+  /* Sum up clear events, cancels & states time */
+  long clear_objects_time_ = 0;
+  com_.reduce_sum(wait, clear_objects_time_,
+                  stopwatch::instance("Clear")->time_ms());
+  while(wait);
+  /* Sum up # of processing events */
+  long num_ev_prcss_sum = 0;
+  com_.reduce_sum(wait, num_ev_prcss_sum, counter::sum("Events"));
+  while (wait);
+  /* Sum up # of cancel events */
+  long num_cancel_sum = 0;
+  com_.reduce_sum(wait, num_cancel_sum, counter::sum("Cancels"));
+  while (wait);
+  /* Sum up # of outputted events */
+  long num_output_events_sum = 0;
+  com_.reduce_sum(wait, num_output_events_sum, counter::sum("OutputtedEvent"));
+  while (wait);
+  /* Sum up Memory usage of Event */
+  long mem_usage_ev_sum = 0;
+  int size_ev_ = sizeof(event<App>);
+  com_.reduce_sum(wait, mem_usage_ev_sum, size_ev_ * counter::sum("Events"));
+  while (wait);
+  LOG_IF(INFO, com_.rank() == 0) << "Finish Simulation";
+  LOG_IF(INFO, com_.rank() == 0)
+    << "\n====================================================================\n"
+    << " Simulation elapsed time: " << stopwatch::instance("Simulation")->time_ms() << " ms\n"
+    << "     Average all events processing time   : " << ev_prcss_time_sum / com_.rank_size() << " ms/partition\n"
+    << "     Average one event processing time    : " << ((float) ev_prcss_time_sum) / ((float) num_output_events_sum) / ((float) com_.rank_size())<< " ms/event \n"
+    << "     Average comm time between partitions : " << communication_time_ / com_.rank_size() << " ms/partition \n"
+    << "     Global synchronization time          : " << global_sync_time_ / com_.rank_size() << " ms/partition \n"
+    << "     Clear(store) object time             : " << clear_objects_time_ / com_.rank_size() << " ms/partition \n"
+    << "\n"
+    << " # of global synchronizations   : " << counter::sum("GVT") << "\n"
+    << " # of processing events         : " << num_ev_prcss_sum << "\n"
+    << " # of cancels (= # of rollback) : " << num_cancel_sum << "\n"
+    << " # of output events          : " << num_output_events_sum << "\n\n"
+    << " Approximate total memory usage           : " << "\n"
+    << "     Approximate memory usage for events  : " << mem_usage_ev_sum << " byte \n"
+    << "     Approximate memory usage for cancels : " << "\n"
+    << "     Approximate memory usage for states  : " << "\n\n"
+    << " Approximate total store usage       : " << "\n"
+    << "     Approximate store events usage  : " << "\n"
+    << "     Approximate store cancels usage : " << "\n"
+    << "     Approximate store states usage  : " << "\n"
+    << "====================================================================\n";
+  wait = true;
+  com_.barrier(wait);
+  while (wait);
+
+  int rank_  = com_.rank();
+  com_.finish();
+  lp_mngr_.delete_lps(rank_);
+}; /* finish() */
+
+template<class App>
+void runner<App>::run(int scheduler_id) {
+  for (int i = 0; i < App::gsync_interval(); ++i) {
+    long lp_id_ = schedulers_[scheduler_id].dequeue();
+    if (lp_id_ < 0) break;
+    lp<App>* lp_;
+    lp_mngr_.get_lp(lp_, lp_id_);
+    run_lp_aggr(lp_);
+    schedulers_[scheduler_id].queue(lp_->local_time(), lp_->id());
   }
+  pool.callback_end();
 };
 
 template<class App>
-void runner<App>::run_lp_aggr(lp<App>* lp_, thr_pool* thr_pool) {
+void runner<App>::run_lp_aggr(lp<App>* lp_) {
   /* send cancel event */
   ev_vec<App> cancels_;
   lp_->flush_buf(cancels_);
   for (auto it = cancels_.begin(); it != cancels_.end(); ++it) {
-    event_com<App>::instance()->send_event(*it);
+    com_.send_event(*it);
   }
 
   /* run application code */
-  for (int i = 0; i < App::comm_interval(); ++i) {
+  for (int i = 0; i < App::switch_lp_interval(); ++i) {
     if (lp_->local_time() == timestamp::max()) {
       break;
     }
@@ -497,19 +506,22 @@ void runner<App>::run_lp_aggr(lp<App>* lp_, thr_pool* thr_pool) {
       lp_->set_cancel(update->first);
       timestamp tmstp(update->first->send_time(), update->first->id());
       lp_->update_state(update->second, tmstp);
-      event_com<App>::instance()->send_event(update->first);
+      com_.send_event(update->first);
     }
   }
-
-  thr_pool->callback_end();
 }; /* run_lp_aggr() */
 
 template<class App>
-void runner<App>::clear_old_ev_st(lp<App>* lp, thr_pool* pool,
-                                  const timestamp& time) {
-  lp->clear_old_ev(time);
-  lp->clear_old_st(time);
-  pool->callback_end();
+void runner<App>::clear(int scheduler_id, const timestamp& time) {
+  for (auto it = schedulers_[scheduler_id].active_lp()->begin();
+      it != schedulers_[scheduler_id].active_lp()->end(); ++it) {
+    lp<App>* lp_;
+    lp_mngr_.get_lp(lp_, *it);
+    lp_->clear_old_ev(time);
+    lp_->clear_old_st(time);
+  }
+  //schedulers_[scheduler_id].reset_active_lp();
+  pool.callback_end();
 };
 
 template<class App>

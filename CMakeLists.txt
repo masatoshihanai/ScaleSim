@@ -123,6 +123,7 @@ add_library (scalelib STATIC
     include/scalesim/com/mpi/sender_receiver.hpp
     include/scalesim/logical_process.hpp
     include/scalesim/logical_process/logical_process.hpp
+    include/scalesim/logical_process/process_scheduler.hpp
     include/scalesim/logical_process/queue.hpp
     include/scalesim/logical_process/store/berkeleydb_store.hpp
     include/scalesim/logical_process/store/leveldb_store.hpp

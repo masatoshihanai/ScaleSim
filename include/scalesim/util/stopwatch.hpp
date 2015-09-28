@@ -18,7 +18,7 @@ namespace scalesim {
 
 class stopwatch {
  private:
-  stopwatch():time(0) {};
+  stopwatch(): time(0) {};
   stopwatch(const stopwatch&);
   void operator=(const stopwatch&);
  public:

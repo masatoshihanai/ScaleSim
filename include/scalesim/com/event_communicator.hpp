@@ -24,25 +24,13 @@ class event_com {
  private:
   event_com(const event_com&);
   void operator=(const event_com&);
-  event_com(){};
  public:
+  event_com(): lp_manager_(NULL){};
   virtual ~event_com(){};
  private:
-  parti_ptr partition_;
   lp_mngr<App>* lp_manager_;
-  boost::mutex send_lock;
   int rank_; int rank_size_;
  public:
-  static event_com* instance() {
-    static event_com* instance_;
-    if (!instance_) { instance_ = new event_com; }
-    return instance_;
-  };
-  static void del_instance() {
-    event_com* instance_ = event_com::instance();
-    if (instance_) { delete instance_; instance_ = NULL; }
-  };
-
   void init(lp_mngr<App>* lp_manager);
   void start();
   void stop();
