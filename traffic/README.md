@@ -54,7 +54,7 @@ And then
 ```
 $ gpmetis trafficgraph {# of Partition}
 ```
-You can see a new file `trafficgraph.part.{# of partition}`.
+You can find a new file `trafficgraph.part.{# of partition}`.
 ### Format of trafficgraph.part.*
 ```
 {partition id of cross point1}
