@@ -44,15 +44,17 @@ class sim_event_base {
 
 class sim_event {
  protected:
-  sim_event(){};
-  virtual ~sim_event(){};
+  sim_event() {};
+  virtual ~sim_event() {};
  public:
   virtual long id() const { return -1; };
   virtual long source() const { return -1; };
   virtual long destination() const { return -1; };
-  virtual long end() const { return -1; };
+  virtual bool end() const { return false; };
   virtual long receive_time() const { return -1; };
   virtual long send_time() const { return -1; };
+  /* return byte size of the message */
+  virtual int size() const { return -1; };
 
   virtual sim_event_base* base() const = 0;
   bool is_white() const { return this->base()->is_white(); };
@@ -70,7 +72,7 @@ class sim_event {
               << "," << this->receive_time();
 
     if (this->source() == -1) { std::cout << ",START"; }
-    else if (this->destination() == this->end()) { std::cout << ",END"; }
+    else if (this->end()) { std::cout << ",END"; }
     std::cout << std::endl;
   };
 
@@ -87,10 +89,11 @@ class sim_event {
 
 class sim_state {
  public:
-  sim_state(){};
+  sim_state() {};
   virtual ~sim_state(){};
  public:
   virtual long id() const = 0;
+  virtual int size() const { return -1; };
   void result_out() const {};
 };
 

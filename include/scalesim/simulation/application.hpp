@@ -35,7 +35,7 @@ class application {
    * Interval between switching logical processes in event processing.
    * The return value means # of dequeue events before switching next logical process.
    */
-  static int switch_lp_interval() { return 2; };
+  static int switch_lp_interval() { return 5; };
 
   /*
    * Interval between second cut and next first cut
@@ -48,7 +48,7 @@ class application {
    * The effective # is (# of processors) + 1.
    * For instance, when a machine has 4 cores, 5 (4 core + 1) is effective.
    */
-  static int num_thr () { return 4; };
+  static int num_thr () { return 2; };
 
   /*
    * Simulation finishes when global time >= finish_time().

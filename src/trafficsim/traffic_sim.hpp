@@ -18,10 +18,6 @@
 #include <glog/logging.h>
 #include "scalesim/util.hpp"
 
-//FIXME !!! in the case over 1000, message truncate has occur !!!
-#define MAX_PATH_LENGTH 200
-#define MAX_NUM_ROAD_PER_CP 20
-
 /**
  * The traffic modeling is based on the paper.
  * http://kalper.net/kp/publications/docs/rcveh-pads08.pdf
@@ -35,48 +31,48 @@ class traffic_sim: public scalesim::application {
     long vehicle_id;
     long arrival_time; /* second */
     long departure_time; /* second */
-    int track_counter;
-    int track_length;
-    long path_tracks[MAX_PATH_LENGTH];
+    long source_;
+    std::vector<long> destinations_; /* lp id */
     mutable scalesim::sim_event_base base_;
    public:
-    Event(): vehicle_id(-1), arrival_time(-1), departure_time(-1),
-             track_counter(0), track_length(0) { };
+    Event(): vehicle_id(-1), arrival_time(-1), departure_time(-1), source_(-1) {};
     virtual ~Event(){};
     Event(long vehicle_id_,
           long arrival_time_,
           long departure_time_,
-          long path_tracks_[MAX_PATH_LENGTH],
-          int track_counter_,
-          int track_length_):
+          long source_,
+          std::vector<long> destinations):
             vehicle_id(vehicle_id_),
             arrival_time(arrival_time_),
             departure_time(departure_time_),
-            track_counter(track_counter_),
-            track_length(track_length_) {
-      std::memcpy(path_tracks, path_tracks_, sizeof(long) * track_length_);
+            source_(source_) {
+      for (auto it = destinations.begin(); it != destinations.end(); ++it) {
+        destinations_.push_back(*it);
+      }
     };
     Event(const Event& event) {
       vehicle_id = event.vehicle_id;
       arrival_time = event.arrival_time;
       departure_time = event.departure_time;
-      track_counter = event.track_counter;
-      track_length = event.track_length;
-      std::memcpy(path_tracks, event.path_tracks,
-                  sizeof(long) * event.track_length);
+      source_ = event.source_;
+      for (auto it = event.destinations_.begin();
+          it != event.destinations_.end(); ++it) {
+        destinations_.push_back(*it);
+      }
       base_ = event.base_;
     };
 
    public:
     scalesim::sim_event_base* base() const { return &base_; };
     long id() const { return vehicle_id; };
-    long source() const {
-      return track_counter > 0 ? path_tracks[track_counter - 1] : -1;
-    };
-    long destination() const { return path_tracks[track_counter]; };
-    long end() const { return path_tracks[track_length - 1]; };
+    long source() const { return source_; };
+    long destination() const { return destinations_[0]; };
+    bool end() const { return (destinations_.size() == 1); };
     long receive_time() const { return arrival_time; };
     long send_time() const { return departure_time; };
+    int size() const {
+      return sizeof(*this) + sizeof(long)*destinations_.size();
+    };
 
     friend class boost::serialization::access;
    private:
@@ -85,9 +81,8 @@ class traffic_sim: public scalesim::application {
       ar & vehicle_id;
       ar & arrival_time;
       ar & departure_time;
-      ar & track_counter;
-      ar & track_length;
-      ar & path_tracks;
+      ar & source_;
+      ar & destinations_;
       ar & base_;
     }
   }; /* class event */
@@ -102,7 +97,7 @@ class traffic_sim: public scalesim::application {
     std::vector<int> num_lanes_;
     std::vector<long> road_length_; /* m */
    public:
-    State(): id_(-1){};
+    State(): id_(-1) {};
     virtual ~State() {};
     State(long id, std::vector<long> destiantions,
         std::vector<long> speed_limit,
@@ -115,6 +110,13 @@ class traffic_sim: public scalesim::application {
       road_length_ = road_length;
     };
     long id() const { return id_; }
+    int size() const {
+      return sizeof(*this) +
+             sizeof(long) * (destinations_.size() +
+                             speed_limit_.size() +
+                             num_lanes_.size() +
+                             road_length_.size());
+    }
     void out_put() const {
       std::cout << "state id: " << id_ << std::endl;
     };
@@ -193,7 +195,7 @@ class traffic_sim: public scalesim::application {
    *
    * If there are no new event and state generated, return empty option.
    */
-  boost::optional<std::pair<ev_ptr<traffic_sim>, st_ptr<traffic_sim> > >
+  boost::optional<std::pair<std::vector<ev_ptr<traffic_sim> >, st_ptr<traffic_sim> > >
   event_handler(ev_ptr<traffic_sim> receive_event, st_ptr<traffic_sim> state);
 };
 

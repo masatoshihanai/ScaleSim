@@ -35,6 +35,7 @@ class runner {
   lp_mngr<App> lp_mngr_;
   thr_pool pool;
   std::vector<scheduler<App> > schedulers_;
+  long byte_events, byte_state;
  private:
   runner(): pool(App::num_thr()),
             schedulers_(App::num_thr()){};
@@ -119,7 +120,6 @@ void runner<App>::init() {
    com_.reduce_sum(wait, sum_states, states.size());
    while (wait);
 
-   long byte_state = sizeof(state<App>);
    stopwatch::instance("InitState")->stop();
 
    /* initiate events */
@@ -145,12 +145,16 @@ void runner<App>::init() {
    }
 
    long num_events = initial_events.size();
-   long byte_events = sizeof(event<App>);
    long sum_events;
    bool rd_wait = true;
    com_.reduce_sum(rd_wait, sum_events, num_events);
    while (rd_wait);
    stopwatch::instance("InitEvent")->stop();
+
+   if (com_.rank() == 0) {
+     byte_events = initial_events[0]->size();
+     byte_state = states[0]->size();
+   }
 
    /* input data information */
    LOG_IF(INFO, com_.rank() == 0)
@@ -305,13 +309,13 @@ void runner<App>::init_repeat() {
     }
   }
 
-  int byte_state = sizeof(state<App>);
+  byte_state = sizeof(state<App>); // TODO change to state.size()
   bool wait = true;
   long sum_states = 0;
   com_.reduce_sum(wait, sum_states, num_states);
   while (wait);
 
-  int byte_events = sizeof(event<App>);
+  byte_events = sizeof(event<App>); // TODO change to event.size()
   long sum_events;
   wait = true;
   com_.reduce_sum(wait, sum_events, num_events);
@@ -428,11 +432,11 @@ void runner<App>::finish() {
   long num_output_events_sum = 0;
   com_.reduce_sum(wait, num_output_events_sum, counter::sum("OutputtedEvent"));
   while (wait);
-  /* Sum up Memory usage of Event */
-  long mem_usage_ev_sum = 0;
-  int size_ev_ = sizeof(event<App>);
-  com_.reduce_sum(wait, mem_usage_ev_sum, size_ev_ * counter::sum("Events"));
+  /* Sum up store usage of State */
+  long num_clear_st_sum = 0;
+  com_.reduce_sum(wait, num_clear_st_sum, counter::sum("StateClear"));
   while (wait);
+
   LOG_IF(INFO, com_.rank() == 0) << "Finish Simulation";
   LOG_IF(INFO, com_.rank() == 0)
     << "\n====================================================================\n"
@@ -446,15 +450,11 @@ void runner<App>::finish() {
     << " # of global synchronizations   : " << counter::sum("GVT") << "\n"
     << " # of processing events         : " << num_ev_prcss_sum << "\n"
     << " # of cancels (= # of rollback) : " << num_cancel_sum << "\n"
-    << " # of output events          : " << num_output_events_sum << "\n\n"
-    << " Approximate total memory usage           : " << "\n"
-    << "     Approximate memory usage for events  : " << mem_usage_ev_sum << " byte \n"
-    << "     Approximate memory usage for cancels : " << "\n"
-    << "     Approximate memory usage for states  : " << "\n\n"
-    << " Approximate total store usage       : " << "\n"
-    << "     Approximate store events usage  : " << "\n"
-    << "     Approximate store cancels usage : " << "\n"
-    << "     Approximate store states usage  : " << "\n"
+    << " # of output events             : " << num_output_events_sum << "\n\n"
+    << " Approximate total store usage       : " << num_output_events_sum*byte_events*2 + num_clear_st_sum*byte_state << " byte \n"
+    << "     Approximate store events usage  : " << num_output_events_sum*byte_events << " byte \n"
+    << "     Approximate store cancels usage : " << num_output_events_sum*byte_events << " byte \n"
+    << "     Approximate store states usage  : " << num_clear_st_sum*byte_state << " byte \n"
     << "====================================================================\n";
   wait = true;
   com_.barrier(wait);
@@ -498,15 +498,17 @@ void runner<App>::run_lp_aggr(lp<App>* lp_) {
 
     st_ptr<App> state;
     lp_->get_state(state);
-    boost::optional<std::pair<ev_ptr<App>, st_ptr<App> > >
-      update = app_.event_handler(event, state);
-    if (!update || update->first->receive_time() > App::finish_time()) {
+    boost::optional<std::pair<std::vector<ev_ptr<App> >, st_ptr<App> > >
+        update = app_.event_handler(event, state);
+    if (!update) {
       break;
     } else { /* update ==  true */
-      lp_->set_cancel(update->first);
-      timestamp tmstp(update->first->send_time(), update->first->id());
-      lp_->update_state(update->second, tmstp);
-      com_.send_event(update->first);
+      for (auto it = update->first.begin(); it != update->first.end(); ++it) {
+        lp_->set_cancel(*it);
+        timestamp tmstp((*it)->send_time(), (*it)->id());
+        lp_->update_state(update->second, tmstp);
+        com_.send_event(*it);
+      }
     }
   }
 }; /* run_lp_aggr() */

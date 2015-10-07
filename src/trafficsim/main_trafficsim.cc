@@ -25,10 +25,10 @@ static string SCENARIO_PATH;
 
 long traffic_sim::finish_time() {
 //  return 500;
-  return 3600;      /*  1 hours */
+//  return 3600;      /*  1 hours */
 //  return 10800;   /*  3 hours */
 //  return 21600;   /*  6 hours */
-//  return 86400;   /* 24 hours */
+  return 86400;   /* 24 hours */
 //  return std::numeric_limits<long>::max();
 };
 
@@ -62,47 +62,55 @@ void traffic_sim::init_what_if(
   traffic_reader::what_if_read(ret, rank, rank_size, SCENARIO_PATH);
 };
 
-boost::optional<pair<ev_ptr<traffic_sim>, st_ptr<traffic_sim> > >
+boost::optional<pair<vector<ev_ptr<traffic_sim> >, st_ptr<traffic_sim> > >
 traffic_sim::event_handler(ev_ptr<traffic_sim> receive_event,
                            st_ptr<traffic_sim> state) {
-  long new_path_tracks[MAX_PATH_LENGTH];
-  int new_track_counter = receive_event->track_counter + 1;
-  int new_track_length = std::min(receive_event->track_length, MAX_PATH_LENGTH);
-  for (int i = 0; i < new_track_length; ++i) {
-    new_path_tracks[i] = receive_event->path_tracks[i];
+
+  /* define destinations */
+  vector<long> new_destinations_;
+  auto tracks_it_ = receive_event->destinations_.begin();
+  ++tracks_it_;
+  while (tracks_it_ != receive_event->destinations_.end()) {
+    new_destinations_.push_back(*tracks_it_);
+    ++tracks_it_;
   }
+
+  if (new_destinations_.empty()) {
+    return boost::optional<pair<vector<ev_ptr<traffic_sim> >, st_ptr<traffic_sim> > >();
+  }
+
+  /* calculate reaching time to next junction */
+  auto it = std::find(state->destinations_.begin(),
+                      state->destinations_.end(),
+                      new_destinations_.front());
+
+  DLOG_ASSERT(it != state->destinations_.end())
+      << " No road from: " << state->id() << " to " << new_destinations_.front()
+      << "\n See vehicle: " << receive_event->id() << "'s tracks";
+
+  long new_arrival_time = 0;
+  int i = it - state->destinations_.begin();
+  if (state->speed_limit_[i] != 0) {
+    new_arrival_time
+      = state->road_length_[i] * 60 * 60 / state->speed_limit_[i] / 1000
+        + receive_event->arrival_time + 5;
+  } else {
+    new_arrival_time = state->road_length_[i] * 60 * 60
+                       + receive_event->arrival_time;
+  }
+
+
+  long new_source_ = receive_event->destinations_.front();
+
   long new_depature_time = receive_event->arrival_time;
 
-  long new_arrival_time;
-
-  /* find the iterator of road to the destination */
-  vector<long> new_destinations = state->destinations_;
-  for(auto it = new_destinations.begin();
-           it != new_destinations.end(); ++it) {
-    /* road destination == vehicle destination */
-    if (*it == new_path_tracks[new_track_counter]) {
-
-      /* calculate reaching time to next junction */
-      int i = distance(new_destinations.begin(), it);
-      if (state->speed_limit_[i] != 0) {
-        new_arrival_time
-          = state->road_length_[i] * 60 * 60 / state->speed_limit_[i] / 1000
-            + receive_event->arrival_time + 5;
-      } else {
-        new_arrival_time = state->road_length_[i] * 60 * 60
-                           + receive_event->arrival_time;
-      }
-      break;
-    }
-  }
-
-  ev_ptr<traffic_sim> new_event = boost::make_shared<traffic_sim::Event>(
+  vector<ev_ptr<traffic_sim> > new_event;
+  new_event.push_back(boost::make_shared<traffic_sim::Event>(
       traffic_sim::Event(receive_event->vehicle_id,
                          new_arrival_time,
                          new_depature_time,
-                         new_path_tracks,
-                         new_track_counter,
-                         new_track_length));
+                         new_source_,
+                         new_destinations_)));
 
   st_ptr<traffic_sim> new_state = boost::make_shared<traffic_sim::State>(
       traffic_sim::State(state->id_,
@@ -111,12 +119,8 @@ traffic_sim::event_handler(ev_ptr<traffic_sim> receive_event,
                          state->num_lanes_,
                          state->road_length_));
 
-  if (new_track_counter >= new_track_length) {
-    return boost::optional<pair<ev_ptr<traffic_sim>, st_ptr<traffic_sim> > >();
-  }
-
-  return boost::optional<pair<ev_ptr<traffic_sim>, st_ptr<traffic_sim> > > (
-      pair<ev_ptr<traffic_sim>, st_ptr<traffic_sim> >(new_event, new_state));
+  return boost::optional<pair<vector<ev_ptr<traffic_sim> >, st_ptr<traffic_sim> > > (
+      pair<vector<ev_ptr<traffic_sim> >, st_ptr<traffic_sim> >(new_event, new_state));
 };
 
 int main (int argc, char* argv[]) {

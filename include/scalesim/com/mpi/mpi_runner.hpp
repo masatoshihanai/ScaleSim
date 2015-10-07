@@ -187,13 +187,10 @@ void mpi_thr<App>::loop() {
     /* global sync */
     mpi_gsync<App>::instance()->check_sync();
 
-    /* check send and receive */
-    receiver_.check_receive(call_back_function_);
-    sender_.check_send();
-
     /* send and receive */
-    receiver_.async_receive();
     sender_.async_send();
+    receiver_.receive(call_back_function_);
+    sender_.check_send();
   }
 
   while (finish_) {

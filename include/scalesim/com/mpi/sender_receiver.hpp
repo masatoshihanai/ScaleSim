@@ -115,49 +115,30 @@ class mpi_receiver {
   virtual ~mpi_receiver(){};
  private:
   const boost::mpi::communicator* comm_world_;
-  std::vector<boost::mpi::request> requests_;
-  std::vector<event<App> > rec_events_;
+
  public:
-  void init(const boost::mpi::communicator* comm_world) {
-    comm_world_ = comm_world;
-  };
-  void async_receive();
-  void check_receive(
-      const boost::function<void(const ev_ptr<App>&)>& call_back_f);
+  void init(const boost::mpi::communicator* comm_world)
+    { comm_world_ = comm_world; };
+  void receive(const boost::function<void(const ev_ptr<App>&)>& call_back_f);
 };
 
 template<class App>
-void mpi_receiver<App>::async_receive() {
+void mpi_receiver<App>::receive(
+    const boost::function<void(const ev_ptr<App>&)>& call_back_f) {
   if (comm_world_->iprobe()) {
     stopwatch::instance("PartiToPartiCommunication")->start();
-    rec_events_.push_back(event<App>());
-    requests_.push_back(comm_world_->irecv(boost::mpi::any_source,
-                                           0,
-                                           rec_events_.back()));
-    stopwatch::instance("PartiToPartiCommunication")->stop();
-  }
-};
-
-template<class App>
-void mpi_receiver<App>::check_receive(
-    const boost::function<void(const ev_ptr<App>&)>& call_back_f) {
-  typename std::vector<boost::mpi::request>::iterator it;
-  while ((it = boost::mpi::test_some(requests_.begin(), requests_.end()) )
-             != requests_.end()) {
-    stopwatch::instance("PartiToPartiCommunication")->start();
-    int index = it - requests_.begin();
+    event<App> event_;
+    comm_world_->recv(boost::mpi::any_source, 0, event_);
     ev_ptr<App> receive_event
-        = boost::make_shared<event<App> >(rec_events_[index]);
+        = boost::make_shared<event<App> >(event_);
     call_back_f(receive_event);
     timestamp tmstmp_(receive_event->receive_time(), receive_event->id());
     mpi_gsync<App>::instance()->update_local(tmstmp_);
 
     /* count white transit message */
-    if (rec_events_[index].is_white()) {
+    if (event_.is_white()) {
       mpi_gsync<App>::instance()->decrement_transit_conut();
     }
-    rec_events_.erase(rec_events_.begin() + index);
-    requests_.erase(it);
     stopwatch::instance("PartiToPartiCommunication")->stop();
   }
 };

@@ -45,7 +45,7 @@ $ mpirun -np 4 ./build/TrafficSim \
 ### Exact-Differential Simulation
 
 You should define:
-- `--sim_id` : simulation running ID. In repeating execution, the simulator reads same ID inputs.
+- `--sim_id` : simulation task ID. In repeating execution, the simulator reads same ID inputs.
 - `--store_dir` or `--store_ip` : directory path or IP address to store results.
 
 For initial execution, use `--diff_init` option.

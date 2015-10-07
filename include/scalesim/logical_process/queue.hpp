@@ -242,13 +242,15 @@ class stateq {
  public:
   explicit stateq(long id): id_(id),
       released_st_time(timestamp::zero()),
-      stored_st_time(timestamp::zero()){};
+      stored_st_time(timestamp::zero()),
+      clear_state_counter_(counter::instance("StateClear")){};
   virtual ~stateq(){};
  private:
   const long id_;
   std::map<timestamp, st_ptr<App> > state_map;
   timestamp released_st_time;
   timestamp stored_st_time;
+  counter* clear_state_counter_;
  public:
   void get_state(st_ptr<App>& new_state);
   void push_back_state(const st_ptr<App>& state, const timestamp& time);
@@ -285,8 +287,10 @@ void stateq<App>::release(const timestamp& to) {
   DLOG_ASSERT(released_st_time < to || released_st_time == to)
       << " Global time: " << to.time()
       << " is lower than released time: " << released_st_time.time();
-  state_map.erase(state_map.lower_bound(released_st_time),
-      state_map.lower_bound(to));
+  auto from_it = state_map.lower_bound(released_st_time);
+  auto to_it = state_map.lower_bound(to);
+  *clear_state_counter_ += (std::distance(from_it, to_it));
+  state_map.erase(from_it, to_it);
   released_st_time = to;
 };
 
