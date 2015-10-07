@@ -38,7 +38,9 @@ class runner {
   long byte_events, byte_state;
  private:
   runner(): pool(App::num_thr()),
-            schedulers_(App::num_thr()){};
+            schedulers_(App::num_thr()),
+            byte_events(0),
+            byte_state(0){};
   virtual ~runner(){};
   runner(const runner&);
   void operator=(const runner&);
@@ -111,6 +113,7 @@ void runner<App>::init() {
                                  com_.rank_size(),
                                  lp_mngr_.partition());
    for (auto it = states.begin(); it != states.end(); ++it) {
+     byte_state = (*it)->size() > byte_state ? (*it)->size(): byte_state;
      lp<App>* lp_;
      lp_mngr_.get_lp(lp_, (*it)->id());
      lp_->init_state(*it);
@@ -139,6 +142,7 @@ void runner<App>::init() {
    while (sh_wait);
 
    for (auto it = initial_events.begin(); it != initial_events.end(); ++it) {
+     byte_events = byte_events < (*it)->size()? (*it)->size(): byte_events;
      lp<App>* lp_;
      lp_mngr_.get_lp(lp_, (*it)->destination());
      lp_->init_event(*it);
@@ -150,11 +154,6 @@ void runner<App>::init() {
    com_.reduce_sum(rd_wait, sum_events, num_events);
    while (rd_wait);
    stopwatch::instance("InitEvent")->stop();
-
-   if (com_.rank() == 0) {
-     byte_events = initial_events[0]->size();
-     byte_state = states[0]->size();
-   }
 
    /* input data information */
    LOG_IF(INFO, com_.rank() == 0)
@@ -219,6 +218,8 @@ void runner<App>::init_repeat() {
   for (auto it_wi_ = what_ifs_.begin(); it_wi_ != what_ifs_.end(); ++it_wi_) {
     if ((*it_wi_)->update_state_.id() != -1) {
       /* initiate state */
+      byte_state = (*it_wi_)->update_state_.size() > byte_state ?
+                     (*it_wi_)->update_state_.size(): byte_state;
       lp<App>* lp_;
       lp_mngr_.get_lp(lp_, (*it_wi_)->lp_id_);
       timestamp tmstmp_((*it_wi_)->time_, 0);
@@ -231,6 +232,7 @@ void runner<App>::init_repeat() {
       ev_vec<App> load_events_;
       lp_->load_events(load_events_, tmstmp_);
       for (auto it = load_events_.begin(); it != load_events_.end(); ++it) {
+        byte_events = byte_events < (*it)->size()? (*it)->size(): byte_events;
         lp_->init_event(*it);
         ++num_events;
       }
@@ -253,6 +255,7 @@ void runner<App>::init_repeat() {
       ev_vec<App> load_events_;
       lp_->load_events(load_events_, tmstmp_);
       for (auto it = load_events_.begin(); it != load_events_.end(); ++it) {
+        byte_events = byte_events < (*it)->size()? (*it)->size(): byte_events;
         lp_->init_event(*it);
         ++num_events;
       }
@@ -271,6 +274,8 @@ void runner<App>::init_repeat() {
       timestamp load_tmstmp_;
       lp_->load_prev_state(load_state_, load_tmstmp_, tmstmp_);
       lp_->init_state(load_state_, load_tmstmp_);
+      byte_state
+          = load_state_->size() > byte_state ? load_state_->size(): byte_state;
       ++num_states;
     }
 
@@ -284,9 +289,11 @@ void runner<App>::init_repeat() {
       ev_vec<App> load_events_;
       lp_->load_events(load_events_, tmstmp_);
       for (auto it = load_events_.begin(); it != load_events_.end(); ++it) {
+        byte_events = byte_events < (*it)->size()? (*it)->size(): byte_events;
         lp_->init_event(*it);
         ++num_events;
       }
+
       ev_vec<App> load_cancels_;
       lp_->load_cancels(load_cancels_, tmstmp_);
       for (auto it = load_cancels_.begin(); it != load_cancels_.end(); ++it) {
@@ -305,6 +312,8 @@ void runner<App>::init_repeat() {
       timestamp load_tmstmp_;
       lp_->load_prev_state(load_state_, load_tmstmp_, tmstmp_);
       lp_->init_state(load_state_, load_tmstmp_);
+      byte_state
+          = load_state_->size() > byte_state ? load_state_->size(): byte_state;
       ++num_states;
     }
   }
@@ -415,20 +424,25 @@ void runner<App>::finish() {
                   stopwatch::instance("Clear")->time_ms());
   while(wait);
   /* Sum up # of processing events */
-  long num_ev_prcss_sum = 0;
-  com_.reduce_sum(wait, num_ev_prcss_sum, counter::sum("Events"));
+  long num_ev_prcss_sum = counter::sum("Events");
+  com_.reduce_sum(wait, num_ev_prcss_sum, num_ev_prcss_sum);
   while (wait);
   /* Sum up # of cancel events */
-  long num_cancel_sum = 0;
-  com_.reduce_sum(wait, num_cancel_sum, counter::sum("Cancels"));
+  long num_cancel_sum = counter::sum("Cancels");
+  com_.reduce_sum(wait, num_cancel_sum, num_cancel_sum);
   while (wait);
   /* Sum up # of outputted events */
-  long num_output_events_sum = 0;
-  com_.reduce_sum(wait, num_output_events_sum, counter::sum("OutputtedEvent"));
+  long num_output_events_sum = counter::sum("OutputtedEvent");
+  long store_usage_ev_ = num_output_events_sum * byte_events;
+  com_.reduce_sum(wait, num_output_events_sum, num_output_events_sum);
   while (wait);
+  /* Sum up store usage of events */
+  com_.reduce_sum(wait, store_usage_ev_, store_usage_ev_);
+  while (wait);
+
   /* Sum up store usage of State */
-  long num_clear_st_sum = 0;
-  com_.reduce_sum(wait, num_clear_st_sum, counter::sum("StateClear"));
+  long store_usage_st_ = byte_state * counter::sum("StateClear");
+  com_.reduce_sum(wait, store_usage_st_, store_usage_st_);
   while (wait);
 
   LOG_IF(INFO, com_.rank() == 0) << "Finish Simulation";
@@ -445,10 +459,10 @@ void runner<App>::finish() {
     << " # of processing events         : " << num_ev_prcss_sum << "\n"
     << " # of cancels (= # of rollback) : " << num_cancel_sum << "\n"
     << " # of output events             : " << num_output_events_sum << "\n\n"
-    << " Approximate total store usage       : " << num_output_events_sum*byte_events*2 + num_clear_st_sum*byte_state << " byte \n"
-    << "     Approximate store events usage  : " << num_output_events_sum*byte_events << " byte \n"
-    << "     Approximate store cancels usage : " << num_output_events_sum*byte_events << " byte \n"
-    << "     Approximate store states usage  : " << num_clear_st_sum*byte_state << " byte \n"
+    << " Approximate total store usage       : " << store_usage_ev_*2 + store_usage_st_ << " byte \n"
+    << "     Approximate store events usage  : " << store_usage_ev_ << " byte \n"
+    << "     Approximate store cancels usage : " << store_usage_ev_ << " byte \n"
+    << "     Approximate store states usage  : " << store_usage_st_ << " byte \n"
     << "====================================================================\n";
   wait = true;
   com_.barrier(wait);

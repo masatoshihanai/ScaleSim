@@ -52,7 +52,7 @@ For initial execution, use `--diff_init` option.
 ```
 $ mpirun -np 4 ./build/TrafficSim --sim_id=999 --store_dir="./tmp" --diff_init \
                  ./traffic/ring/part/graph.part.4 \
-                 ./traffic/ring/part/rd.sim.csv \
+                 ./traffic/ring/rd.sim.csv \
                  ./traffic/ring/trip.csv
 ```
 
