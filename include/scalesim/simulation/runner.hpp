@@ -309,13 +309,11 @@ void runner<App>::init_repeat() {
     }
   }
 
-  byte_state = sizeof(state<App>); // TODO change to state.size()
   bool wait = true;
   long sum_states = 0;
   com_.reduce_sum(wait, sum_states, num_states);
   while (wait);
 
-  byte_events = sizeof(event<App>); // TODO change to event.size()
   long sum_events;
   wait = true;
   com_.reduce_sum(wait, sum_events, num_events);
@@ -328,12 +326,8 @@ void runner<App>::init_repeat() {
     << "\n====================================================================\n"
     << " Number of partitions: " << com_.rank_size() << "\n"
     << " Number of Threads: " << App::num_thr() << "\n\n"
-    << " Total initial events size " << (sum_events * byte_events) << " byte\n"
-    << "     Total events num: " << sum_events << "\n"
-    << "     One event size: " << byte_events << " byte\n"
-    << " Total states size: " << (sum_states * byte_state) << " byte\n"
-    << "     Total states num: " << sum_states << "\n"
-    << "     One state size: " << byte_state << " byte\n\n"
+    << " Total events num: " << sum_events << "\n"
+    << " Total states num: " << sum_states << "\n"
     << " Total init time: "
     << stopwatch::instance("InitApp")->time_ms()
         + stopwatch::instance("InitState")->time_ms()
