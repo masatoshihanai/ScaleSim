@@ -229,11 +229,11 @@ void leveldb_store<Object>::get_prev(const timestamp& time,
 
   it->Seek(db_key);
 
-  if (!it->Valid()) { it->SeekToLast(); }
+//  if (!it->Valid()) { it->SeekToLast(); }
 
   it->Prev();
 
-  if (!it->Valid()) { it->SeekToFirst(); }
+//  if (!it->Valid()) { it->SeekToFirst(); }
   if (!it->Valid()) { return; }
 
   /* get value */
@@ -381,7 +381,7 @@ void leveldb_store<Object>::delete_directory(boost::filesystem::path dir) {
     }
   }
   boost::filesystem::remove(dir);
-}
+};
 
 
 } /* namespace scalesim */

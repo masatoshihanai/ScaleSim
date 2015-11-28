@@ -24,11 +24,11 @@ static string TRAFFIC_MAP_PATH;
 static string SCENARIO_PATH;
 
 long traffic_sim::finish_time() {
-//  return 500;
+  return 500;
 //  return 3600;      /*  1 hours */
 //  return 10800;   /*  3 hours */
 //  return 21600;   /*  6 hours */
-  return 86400;   /* 24 hours */
+//  return 86400;   /* 24 hours */
 //  return std::numeric_limits<long>::max();
 };
 

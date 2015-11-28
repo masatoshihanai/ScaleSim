@@ -180,7 +180,7 @@ TEST_F (db_test_small, put_range) {
 }
 
 TEST_F (db_test_small, get_set_state) {
-  long lp_id_ = 0;
+  long lp_id_ = 999;
   /* initiate state */
   long state_time_ = 999;
   long state_id_ = 10;
@@ -198,7 +198,7 @@ TEST_F (db_test_small, get_set_state) {
 }
 
 TEST_F (db_test_small, get_prev_state) {
-  long lp_id_ = 0;
+  long lp_id_ = 100;
   /* initiate state */
   long state_time0_ = 0; long state_id0_ = 0;
   st_ptr<test_app> state0_(new state<test_app>(state_id0_));
@@ -226,30 +226,27 @@ TEST_F (db_test_small, get_prev_state) {
 }
 
 TEST_F (db_test_small, get_prev_state_invalid_key) {
-  long lp_id_ = 99;
+  long lp_id_ = 0;
   /* initiate state */
-  long state_time0_ = 0; long state_id0_ = 0;
-  st_ptr<test_app> state0_(new state<test_app>(state_id0_));
-
-  long state_time99_ = 99; long state_id1_ = 1;
+  long state_time1_ = 25; long state_id1_ = 1;
   st_ptr<test_app> state1_(new state<test_app>(state_id1_));
 
-  /* put state */
-  timestamp tmstmp0_(state_time0_, state0_->id());
-  scalesim::store<test_app>::st_store()->put(tmstmp0_, lp_id_, *state0_);
+  long state_time99_ = 1000; long state_id2_ = 2;
+  st_ptr<test_app> state2_(new state<test_app>(state_id2_));
 
-  timestamp tmstmp1_(state_time99_, state1_->id());
+  /* put state */
+  timestamp tmstmp1_(state_time1_, state1_->id());
   scalesim::store<test_app>::st_store()->put(tmstmp1_, lp_id_, *state1_);
+
+  timestamp tmstmp2_(state_time99_, state1_->id());
+  scalesim::store<test_app>::st_store()->put(tmstmp2_, lp_id_, *state2_);
 
   /* get state by state_time = 50 */
   st_ptr<test_app> ret;
   timestamp ret_tmstmp;
-  timestamp tmstmp50_(50, state0_->id());
+  timestamp tmstmp50_(50, state1_->id());
   scalesim::store<test_app>::st_store()
       ->get_prev(tmstmp50_, lp_id_, ret, ret_tmstmp);
-  EXPECT_EQ(state_id0_, ret->id());
-  EXPECT_EQ(ret_tmstmp.time(), tmstmp0_.time());
+  EXPECT_EQ(state_id1_, ret->id());
+  EXPECT_EQ(ret_tmstmp.time(), tmstmp1_.time());
 }
-
-
-

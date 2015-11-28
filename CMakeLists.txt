@@ -62,6 +62,14 @@ else ()
     message (STATUS "level_db NG")
 endif ()
 
+find_library (BERKELEY_DB NAMES db_cxx
+    PATH ~/lib . ./lib ${CMAKE_CURRENT_BINARY_DIR}/lib)
+if (Berkeley_DB)
+    message (STATUS "berkeley_db ${BERKELEY_DB} ${Color}ok${ColorReset}")
+else ()
+    message (STATUS "berkeley_db NG")
+endif()
+
 find_library (SNAPPY NAMES snappy
     PATHS ~/lib . ./lib ${CMAKE_CURRENT_BINARY_DIR}/lib)
 if (SNAPPY)
