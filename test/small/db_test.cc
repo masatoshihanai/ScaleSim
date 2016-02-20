@@ -20,7 +20,7 @@ class db_test_small: public ::testing::Test {
  protected:
   static void SetUpTestCase() {
     FLAGS_store_dir = "tmp_db_test_small";
-    FLAGS_store_ip = "localhost";
+    FLAGS_store_ip = "127.0.0.1";
     scalesim::store<test_app>::init(0);
   };
 

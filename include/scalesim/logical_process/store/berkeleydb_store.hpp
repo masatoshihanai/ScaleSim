@@ -359,7 +359,7 @@ void berkeleydb_store<Object>::get_range(const timestamp& from,
  *   time stamp = (time = 99,999,999,999, obj id = 10)
  *   lp id      = 555
  *  to:
- *   0000000000 0000000555 0000000009 9999999999 000000000 0000000010
+ *   0000000000 000000555'\0' 0000000099 999999999'\0' 000000000 000000010'\0'
  */
 template<class Object>
 void berkeleydb_store<Object>::key_lpid_to_char(const timestamp& tmstmp,

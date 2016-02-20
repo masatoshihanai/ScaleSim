@@ -23,7 +23,7 @@ class db_via_lp_medium: public ::testing::Test {
   static void SetUpTestCase() {
     FLAGS_diff_init = true;
     FLAGS_store_dir = "tmp_db_via_lp_medium";
-    FLAGS_store_ip = "localhost";
+    FLAGS_store_ip = "127.0.0.1";
 
     lp_mngr_.init_partition(partition_());
     lp_mngr_.init_lps(0, 1);
@@ -112,4 +112,3 @@ TEST_F(db_via_lp_medium, put_get_state_via_logical_process) {
   // todo stare state to db
   EXPECT_TRUE(false);
 }
-

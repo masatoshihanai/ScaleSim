@@ -24,9 +24,9 @@ static string TRAFFIC_MAP_PATH;
 static string SCENARIO_PATH;
 
 long traffic_sim::finish_time() {
-  return 500;
+//  return 500;
 //  return 3600;      /*  1 hours */
-//  return 10800;   /*  3 hours */
+  return 10800;   /*  3 hours */
 //  return 21600;   /*  6 hours */
 //  return 86400;   /* 24 hours */
 //  return std::numeric_limits<long>::max();
@@ -70,6 +70,11 @@ traffic_sim::event_handler(ev_ptr<traffic_sim> receive_event,
   vector<long> new_destinations_;
   auto tracks_it_ = receive_event->destinations_.begin();
   ++tracks_it_;
+
+  if (tracks_it_ == receive_event->destinations_.end()) {
+    return boost::optional<pair<vector<ev_ptr<traffic_sim> >, st_ptr<traffic_sim> > >();
+  }
+
   while (tracks_it_ != receive_event->destinations_.end()) {
     new_destinations_.push_back(*tracks_it_);
     ++tracks_it_;
@@ -84,6 +89,9 @@ traffic_sim::event_handler(ev_ptr<traffic_sim> receive_event,
                       state->destinations_.end(),
                       new_destinations_.front());
 
+  if (it == state->destinations_.end()) {
+    return boost::optional<pair<vector<ev_ptr<traffic_sim> >, st_ptr<traffic_sim> > >();
+  }
   DLOG_ASSERT(it != state->destinations_.end())
       << " No road from: " << state->id() << " to " << new_destinations_.front()
       << "\n See vehicle: " << receive_event->id() << "'s tracks";

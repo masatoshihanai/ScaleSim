@@ -70,6 +70,14 @@ else ()
     message (STATUS "berkeley_db NG")
 endif()
 
+find_library (REDIS NAMES hiredis
+    PATH ~/lib . ./lib ${CMAKE_CURRENT_BINARY_DIR}/lib)
+if (REDIS)
+    message (STATUS "redis client ${REDIS} ${Color}ok${ColorReset}")
+else ()
+    message (STATUS "redis cliend NG")
+endif()
+
 find_library (SNAPPY NAMES snappy
     PATHS ~/lib . ./lib ${CMAKE_CURRENT_BINARY_DIR}/lib)
 if (SNAPPY)
@@ -110,7 +118,7 @@ else ()
     message (STATUS "gflags NG")
 endif()
 
-if (BOOST_MPI AND BOOST_SYSTEM AND BOOST_THREAD AND BOOST_SERIALIZATION AND BOOST_FILESYSTEM AND LEVEL_DB AND SNAPPY AND GTEST AND GTEST_MAIN AND GLOG AND GFLAGS)
+if (BOOST_MPI AND BOOST_SYSTEM AND BOOST_THREAD AND BOOST_SERIALIZATION AND BOOST_FILESYSTEM AND LEVEL_DB AND REDIS AND SNAPPY AND GTEST AND GTEST_MAIN AND GLOG AND GFLAGS)
     message (STATUS "Library ${Color}ALL OK${ColorReset}")
 else ()
     message (FATAL_ERROR "Library Dependency NG")
@@ -135,6 +143,7 @@ add_library (scalelib STATIC
     include/scalesim/logical_process/queue.hpp
     include/scalesim/logical_process/store/berkeleydb_store.hpp
     include/scalesim/logical_process/store/leveldb_store.hpp
+    include/scalesim/logical_process/store/redis_store.hpp
     include/scalesim/logical_process/store/store_base.hpp
     include/scalesim/simulation.hpp
     include/scalesim/simulation/application.hpp
@@ -156,11 +165,11 @@ add_library (scale_testlib STATIC
 ### TEST file ###
 add_executable (TEST test/main.cc)
 target_link_libraries (TEST
-    scalelib scale_testlib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${GLOG} ${GFLAGS} ${GTEST} ${GTEST_MAIN})
+    scalelib scale_testlib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${REDIS} ${GLOG} ${GFLAGS} ${GTEST} ${GTEST_MAIN})
 
 ### Traffic simulation ###
 add_executable (TrafficSim
     ./src/trafficsim/main_trafficsim.cc)
 
 target_link_libraries (TrafficSim
-    scalelib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${GLOG} ${GFLAGS})
+    scalelib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${REDIS} ${GLOG} ${GFLAGS})
