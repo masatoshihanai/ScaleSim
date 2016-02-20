@@ -58,7 +58,7 @@ void redis_store<Object>::init(const std::string& object_type, const int rank) {
       << " Run with --help, "
       << " and see how to run Differential Execution with file systems.";
   port = 6379;
-  timeout = { 1, 500000 };  /* 1.5 seconds */
+  timeout = { 1, 500000 }; /* 1.5 seconds */
   context = redisConnectWithTimeout(FLAGS_store_ip.c_str(), port, timeout);
 
   if (context == NULL) {
