@@ -379,7 +379,7 @@ void runner<App>::loop() {
         }
       }
 
-      /* clear(store) events/states */
+      /* clear (store) events/states */
       stopwatch::instance("Clear")->start();
       for (int i = 0; i < schedulers_.size(); ++i) {
         pool.post(boost::bind(&runner<App>::clear, this, i, gvt_.gtime()));
