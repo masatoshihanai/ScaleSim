@@ -112,8 +112,8 @@ endif()
 
 find_library (GFLAGS NAMES gflags
     PATH ~/lib . ./lib ${CMAKE_CURRENT_BINARY_DIR}/lib)
-if (GLOG)
-    message (STATUS "gflags ${GFLAG} ${Color}ok${ColorReset}")
+if (GFLAGS)
+    message (STATUS "gflags ${GFLAGS} ${Color}ok${ColorReset}")
 else ()
     message (STATUS "gflags NG")
 endif()
