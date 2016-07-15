@@ -100,8 +100,8 @@ Databases documents
 - (BerkeleyDB) http://docs.oracle.com/cd/E17076_05/html/index.html, http://docs.oracle.com/cd/E17076_05/html/installation/build_unix_conf.html
 
 gtest, gflags, glog documents
-- (gtest Home) https://github.com/google/googletest
-- (gflags Home) https://github.com/gflags/gflags
+- (gtest HOME) https://github.com/google/googletest
+- (gflags HOME) https://github.com/gflags/gflags
 - (glog HOME) https://github.com/google/glog
 
 CMAKE
