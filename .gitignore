@@ -1,6 +1,5 @@
 ### for ScaleSim ###
 build/
-conf/
 jobscript/
 result/
 tmp/

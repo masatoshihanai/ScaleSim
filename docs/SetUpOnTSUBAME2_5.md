@@ -1,5 +1,5 @@
 # Set up for TSUBAME 2.5 Supercomputer
-This is a document for setting up ScaleSim on TSUBAME 2.5 Supercomputer
+This is a document for setting up ScaleSim on TSUBAME 2.5 Supercomputer.
 
 ## Overview
 1. Change MPI environment & C/C++ compiler
@@ -10,8 +10,8 @@ This is a document for setting up ScaleSim on TSUBAME 2.5 Supercomputer
 6. Copy CMakeLists.txt for TSUBAME
 
 ## 1. Change MPI environment & C/C++ compiler
-In default, TSUBME 2.5 uses OpenMPI (1.6.5) with Intel compiler (i2013.1.046)
-Thus, you have to change it to OpenMPI (1.6.5) with GCC compiler (version 5.x)
+In default, TSUBME 2.5 uses OpenMPI (1.6.5) with Intel compiler (i2013.1.046).
+Thus, you have to change it to OpenMPI (1.6.5) with GCC compiler (version 5.x).
 ```
 $ source set_ompi-1.6.5_g4.3.4.sh
 $ source /usr/apps.sp3/nosupport/gsic/env/gcc-5.2.sh
@@ -24,7 +24,7 @@ source /usr/apps.sp3/nosupport/gsic/env/gcc-5.2.sh
 
 ## 2. Change CMake version
 In default, CMake version is 2.6. **ScaleSim** needs CMake 3.x.
-You can change the version as that. It is OK to add in your `.bashrc`
+You can change the version as that. It is OK to add in your `.bashrc`.
 ```
 $ source cmake-3.0.2.sh
 ```
@@ -32,16 +32,16 @@ $ source cmake-3.0.2.sh
 ## 3. Set up Boost Library with Boost.MPI
 **ScaleSim** needs Boost 1.57.x or later with Boost.MPI.
 Download the latest Boost and make a path to its top directory (`BOOST_HOME`).
-In `.bashrc` add
+In `.bashrc`, add
 ```
 export BOOST_HOME="(your Boost folder)"
 ```
-And then, move to the `BOOST_HOME`
+And then, move to the `BOOST_HOME`.
 ```
 $ source ~/.bashrc
 $ cd $BOOST_HOME
 ```
-Finally, compile with **Boost.MPI**
+Finally, compile with **Boost.MPI**.
 ```
 $ ./bootstrap
 $ ./b2 --with-mpi
