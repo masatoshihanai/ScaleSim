@@ -95,7 +95,7 @@ $ mv CMakeLists.txt CMakeLists.txt.org
 $ cp conf/CMakeLists.txt.TSUBAME CMakeLists.txt
 ```
 
-## References (Last access July 15 2016)
+## References
 TSUBAME document
 - (HOME) http://tsubame.gsic.titech.ac.jp/en/top
 - (How to use unsupported latest software) http://tsubame.gsic.titech.ac.jp/labs (in Japanese)
