@@ -50,6 +50,7 @@ $ ./b2 --with-mpi
 ## 4. Set up Databases (LevelDB, Redis, Berkeley DB)
 **ScaleSim** uses database for storing logs.
 Download the latest databases and compile as that.
+
 (LevelDB)
 ```
 $ cd (your levelDB)
@@ -57,6 +58,7 @@ $ make
 $ cp -r include ~/include
 $ cp -r libleveldb.a ~/lib
 ```
+
 (Berkeley DB)
 ```
 $ cd (your BerkeleyDB)
@@ -64,6 +66,7 @@ $ ./dist/configure --enable-cxx --prefix=$HOME
 $ make
 $ make install
 ```
+
 (Redis)
 _UNDER CONSTRUCTION_
 
