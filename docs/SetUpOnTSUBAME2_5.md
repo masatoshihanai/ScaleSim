@@ -88,8 +88,9 @@ $ make install
 ```
 ## 6. Copy CMakeLists.txt for TSUBAME
 There is a CMakeLists.txt file for TSUBAME [`in conf/`](../conf/CMakeLists.txt.TSUBAME).
-Replace an original CMakeLists.txt with the TSUBAME's CMakeLists.
+Replace an original CMakeLists.txt with the CMakeLists.txt.TSUBAME.
 ```
+$ cd (ScaleSim folder)
 $ mv CMakeLists.txt CMakeLists.txt.org
 $ cp conf/CMakeLists.txt.TSUBAME CMakeLists.txt
 ```
