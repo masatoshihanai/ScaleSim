@@ -105,7 +105,7 @@ Boost document
 - (HOME) http://www.boost.org
 - (Getting stated with Boost.MPI) http://www.boost.org/doc/libs/release/doc/html/mpi/getting_started.html
 
-Databases documents
+Database documents
 - LevelDB
   - (HOME) https://github.com/google/leveldb
   - (Docs) https://rawgit.com/google/leveldb/master/doc/index.html
