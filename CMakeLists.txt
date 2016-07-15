@@ -2,7 +2,7 @@ string (ASCII 27 Esc)
 set (ColorReset "${Esc}[m")
 set (Color "${Esc}[1;35m")
 
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.0)
 project (ScaleSim)
 
 ### Compiler ###
