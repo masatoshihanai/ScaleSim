@@ -117,7 +117,7 @@ else ()
 endif ()
 
 ### Include file ###
-include_directories (. ~/include /work1/t2gcresteu/masa/lib/boost_1_59_0/ include src test ${CMAKE_CURRENT_BINARY_DIR}/include )
+include_directories (~/include "$ENV{BOOST_HOME}" include src test)
 
 ### Compile own include files ###
 add_library (scalelib STATIC
