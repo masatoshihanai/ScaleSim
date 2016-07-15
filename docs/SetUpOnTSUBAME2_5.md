@@ -106,13 +106,13 @@ Boost document
 - (Getting stated with Boost.MPI) http://www.boost.org/doc/libs/release/doc/html/mpi/getting_started.html
 
 Databases documents
-(LevelDB)
-- (HOME) https://github.com/google/leveldb
-- (Docs) https://rawgit.com/google/leveldb/master/doc/index.html
+- LevelDB
+  - (HOME) https://github.com/google/leveldb
+  - (Docs) https://rawgit.com/google/leveldb/master/doc/index.html
 
-(BerkeleyDB)
-- (HOME) http://docs.oracle.com/cd/E17076_05/html/index.html
-- (Building for UNIX/POSIX) http://docs.oracle.com/cd/E17076_05/html/installation/build_unix_conf.html
+- BerkeleyDB
+  - (HOME) http://docs.oracle.com/cd/E17076_05/html/index.html
+  - (Building for UNIX/POSIX) http://docs.oracle.com/cd/E17076_05/html/installation/build_unix_conf.html
 
 gtest, gflags, glog documents
 - (gtest HOME) https://github.com/google/googletest
