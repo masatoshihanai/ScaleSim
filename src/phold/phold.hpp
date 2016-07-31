@@ -23,13 +23,13 @@
  * Benchmark program based on phold
  *
  * References
- * "Warp Speed: Executing Time Warp on 1,966,080 Cores" (PADS '14)
- * - http://dl.acm.org/citation.cfm?id=2486134
- * "On Deciding Between Conservative and Optimistic Approaches
- *  on Massively Parallel Platforms" (WSC '10)
- * - http://dl.acm.org/citation.cfm?id=2433588
- * "Scalable Time Warp on Blue Gene Supercomputers" (PADS '09)
- * - http://dl.acm.org/citation.cfm?id=1577971
+ *   "Warp Speed: Executing Time Warp on 1,966,080 Cores" (PADS '14)
+ *     - http://dl.acm.org/citation.cfm?id=2486134
+ *   "On Deciding Between Conservative and Optimistic Approaches
+ *    on Massively Parallel Platforms" (WSC '10)
+ *     - http://dl.acm.org/citation.cfm?id=2433588
+ *   "Scalable Time Warp on Blue Gene Supercomputers" (PADS '09)
+ *     - http://dl.acm.org/citation.cfm?id=1577971
  */
 class phold: public scalesim::application {
  public:
