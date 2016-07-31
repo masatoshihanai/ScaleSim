@@ -40,6 +40,10 @@ sdm/
 # TeXlipse plugin
 .texlipse
 
+### for CLion ###
+.idea
+.idea/*
+
 #### for MacOSX ###
 .DS_Store
 .AppleDouble
