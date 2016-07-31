@@ -24,7 +24,9 @@ template<class App> using st_ptr = boost::shared_ptr<const state<App> >;
 template<class App> using ev_vec = std::vector<ev_ptr<App> >;
 template<class App> using st_vec = std::vector<st_ptr<App> >;
 
+/* partition is a table from id to partition number */
 using parti_ptr = boost::shared_ptr<std::vector<long> >;
+/* partition index is a table from partition to involving ids */
 using parti_indx = boost::unordered_multimap<long, long>;
 using parti_indx_ptr = boost::shared_ptr<parti_indx>;
 
