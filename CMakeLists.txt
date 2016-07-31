@@ -6,7 +6,7 @@ cmake_minimum_required (VERSION 3.0)
 project (ScaleSim)
 
 ### Compiler ###
-set (CMAKE_CXX_COMPILER mpic++)
+set (CMAKE_CXX_COMPILER /usr/local/bin/mpic++)
 add_compile_options(-std=c++11)
 
 ### Compiling mode ###
@@ -168,8 +168,17 @@ target_link_libraries (TEST
     scalelib scale_testlib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${REDIS} ${GLOG} ${GFLAGS} ${GTEST} ${GTEST_MAIN})
 
 ### Traffic simulation ###
-add_executable (TrafficSim
-    ./src/trafficsim/main_trafficsim.cc)
-
+add_executable (TrafficSim ./src/trafficsim/main_trafficsim.cc)
 target_link_libraries (TrafficSim
     scalelib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${REDIS} ${GLOG} ${GFLAGS})
+
+### PHOLD simulation ###
+add_executable (PHOLD ./src/phold/main_phold.cc)
+target_link_libraries (PHOLD
+    scalelib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${REDIS} ${GLOG} ${GFLAGS})
+
+add_executable (PHOLD_TEST test/large/phold/phold_test.cc)
+target_link_libraries (PHOLD_TEST                     
+    scalelib scale_testlib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${REDIS} ${GLOG} ${GFLAGS} ${GTEST} ${GTEST_MAIN})
+
+
