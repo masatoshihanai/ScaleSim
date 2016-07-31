@@ -155,7 +155,7 @@ class traffic_sim: public scalesim::application {
    *   - key: rank number
    *   - value: IDs in this rank
    */
-  std::pair<parti_ptr, parti_indx_ptr> init_partition_index();
+  std::pair<parti_ptr, parti_indx_ptr> init_partition_index(int rank, int rank_size);
 
   /*
    * Initiation function for events.

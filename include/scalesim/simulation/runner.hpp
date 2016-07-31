@@ -98,7 +98,8 @@ void runner<App>::init() {
 
    /* initiate logical processes */
    LOG_IF(INFO, com_.rank() == 0) << "Initiate lps";
-   lp_mngr_.init_partition(app_.init_partition_index());
+   lp_mngr_.init_partition(
+       app_.init_partition_index(com_.rank(), com_.rank_size()));
    lp_mngr_.init_lps(com_.rank(),com_.rank_size());
    lp_mngr_.init_scheduler(&schedulers_);
 
@@ -195,7 +196,7 @@ void runner<App>::init_repeat() {
 
   /* initiate logical processes */
   LOG_IF(INFO, com_.rank() == 0) << "Initiate lps";
-  lp_mngr_.init_partition(app_.init_partition_index());
+  lp_mngr_.init_partition(app_.init_partition_index(com_.rank(), com_.rank_size()));
   lp_mngr_.init_lps(com_.rank(), com_.rank_size());
   lp_mngr_.init_scheduler(&schedulers_);
 

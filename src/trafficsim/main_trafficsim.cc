@@ -34,7 +34,7 @@ long traffic_sim::finish_time() {
 
 void traffic_sim::init() {};
 
-pair<parti_ptr, parti_indx_ptr> traffic_sim::init_partition_index() {
+pair<parti_ptr, parti_indx_ptr> traffic_sim::init_partition_index(int rank, int rank_size) {
   auto partition_ = boost::make_shared<vector<long> >(vector<long>());
   auto index_ = boost::make_shared<boost::unordered_multimap<long, long> >(
                    boost::unordered_multimap<long, long>());
