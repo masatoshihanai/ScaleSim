@@ -86,7 +86,7 @@ void traffic_reader::road_read(st_vec<traffic_sim>& ret,
     if ((*partition)[id]%rank_size == rank) {
       std::vector<std::string> cp;
       boost::split(cp, line, boost::is_any_of(";"));
-      long id;
+      long state_id;
       std::vector<long> destinations;
       std::vector<long> speed_limit;
       std::vector<int> num_lanes;
@@ -94,7 +94,7 @@ void traffic_reader::road_read(st_vec<traffic_sim>& ret,
       for (auto road_it = cp.begin(); road_it != cp.end(); ++road_it) {
         std::vector<std::string> road;
         boost::split(road, *road_it, boost::is_any_of(","));
-        id = atol(road[2].c_str());
+        state_id = atol(road[2].c_str());
         destinations.push_back(atol(road[3].c_str()));
         speed_limit.push_back(atol(road[4].c_str()));
         num_lanes.push_back(atol(road[6].c_str()));
@@ -106,7 +106,7 @@ void traffic_reader::road_read(st_vec<traffic_sim>& ret,
       }
       ret.push_back(
           boost::make_shared<state<traffic_sim> >(
-              state<traffic_sim>(id,
+              state<traffic_sim>(state_id,
                                  destinations,
                                  speed_limit,
                                  num_lanes,
