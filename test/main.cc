@@ -24,10 +24,11 @@
 #include "small/util_test.cc"
 
 int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(*argv);
   google::InstallFailureSignalHandler();
 
-  ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
