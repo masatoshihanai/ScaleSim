@@ -165,3 +165,13 @@ add_executable (TrafficSim
 
 target_link_libraries (TrafficSim
     scalelib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${BERKELEY_DB} ${SNAPPY} ${GLOG} ${GFLAGS})
+
+### PHOLD simulation ###
+add_executable (PHOLD ./src/phold/main_phold.cc)
+target_link_libraries (PHOLD
+    scalelib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${REDIS} ${GLOG} ${GFLAGS})
+
+add_executable (PHOLD_TEST test/large/phold/phold_test.cc)
+target_link_libraries (PHOLD_TEST                     
+    scalelib scale_testlib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${REDIS} ${GLOG} ${GFLAGS} ${GTEST} ${GTEST_MAIN})
+
