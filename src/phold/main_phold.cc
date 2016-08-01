@@ -83,7 +83,11 @@ void phold::init_states_in_this_rank(st_vec<phold>& new_state,
                                      const int rank,
                                      const int rank_size,
                                      parti_ptr partition) {
-  // TODO
+  for (long id = 0; id < NUM_LP; ++id) {
+    if ((*partition)[id] == rank) {
+      new_state.push_back(boost::make_shared<state<phold> > (state<phold>(id)));
+    }
+  }
 };
 
 void phold::init_what_if(

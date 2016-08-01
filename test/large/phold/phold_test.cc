@@ -104,7 +104,39 @@ TEST (phold, init_event) {
 }
 
 TEST (phold, init_states) {
-  EXPECT_TRUE(false);
+  const int rank_size = 4;
+  phold simulation;
+  auto parti_index = simulation.init_partition_index(rank_size);
+  st_vec<phold> states_rank0;
+  st_vec<phold> states_rank1;
+  st_vec<phold> states_rank2;
+  st_vec<phold> states_rank3;
+
+  simulation.init_states_in_this_rank(states_rank0, 0, rank_size, parti_index.first);
+  simulation.init_states_in_this_rank(states_rank1, 1, rank_size, parti_index.first);
+  simulation.init_states_in_this_rank(states_rank2, 2, rank_size, parti_index.first);
+  simulation.init_states_in_this_rank(states_rank3, 3, rank_size, parti_index.first);
+
+  EXPECT_EQ(NUM_LP, states_rank0.size() + states_rank1.size() + states_rank2.size() + states_rank3.size());
+  auto itr0 = states_rank0.begin();
+  auto itr1 = states_rank1.begin();
+  auto itr2 = states_rank2.begin();
+  auto itr3 = states_rank3.begin();
+  for (long i = 0; i < NUM_LP; ++i) {
+    if (i % rank_size == 0) {
+      EXPECT_EQ(i, (*itr0)->id());
+      ++itr0;
+    } else if (i % rank_size == 1) {
+      EXPECT_EQ(i, (*itr1)->id());
+      ++itr1;
+    } else if (i % rank_size == 2) {
+      EXPECT_EQ(i, (*itr2)->id());
+      ++itr2;
+    } else if (i % rank_size == 3) {
+      EXPECT_EQ(i, (*itr3)->id());
+      ++itr3;
+    }
+  }
 }
 
 TEST (phold, init_what_if) {
