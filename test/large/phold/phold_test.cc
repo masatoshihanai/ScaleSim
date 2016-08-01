@@ -13,7 +13,7 @@
 
 #include "phold/phold.hpp"
 
-#define main foo // for compiling main_phold.cc by gtest
+#define main foo /* for compiling main_phold.cc by gtest */
 #include "phold/main_phold.cc"
 
 namespace {
@@ -23,7 +23,23 @@ TEST (phold, ordering_check) {
 }
 
 TEST (phold, init_partition) {
-  EXPECT_TRUE(false);
+  phold simulation;
+  const int rank_size = 10;
+  auto actual = simulation.init_partition_index(rank_size);
+
+  /* Check partition */
+  int id = 0;
+  for (auto itr = actual.first->begin(); itr != actual.first->end(); ++itr) {
+    EXPECT_EQ(*itr, id % rank_size);
+    ++id;
+  }
+
+  /* Check index */
+  for (int partition = 0; partition != rank_size; ++partition) {
+    for (auto itr = actual.second->find(partition); itr->first != partition; ++itr) {
+      EXPECT_EQ(itr->second % rank_size, partition);
+    }
+  }
 }
 
 TEST (phold, init_event) {

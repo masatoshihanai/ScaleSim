@@ -9,7 +9,6 @@
  */
 
 #include <random>
-#include <string>
 #include "scalesim/simulation.hpp"
 #include "scalesim/util.hpp"
 #include "phold.hpp"
@@ -51,17 +50,19 @@ void phold::init() {
   }
 }
 
-pair<parti_ptr, parti_indx_ptr> phold::init_partition_index(int rank, int rank_size) {
+pair<parti_ptr, parti_indx_ptr> phold::init_partition_index(int rank_size) {
   auto partition_ = boost::make_shared<vector<long> > (vector<long>());
   auto index_ = boost::make_shared<boost::unordered_multimap<long, long> >(
                   boost::unordered_multimap<long, long>());
 
-  /* Naive round robin partitioning. */
+  /* Naive round robin partitioning based on remainder. */
   for (long i = 0; i < NUM_LP; ++i) {
-    partition_->push_back(i);
+    partition_->push_back(i % rank_size);
+    auto kv = pair<int, long>(i % rank_size, i);
+    index_->insert(kv);
   }
 
-  return pair<parti_ptr, parti_indx_ptr>();
+  return pair<parti_ptr, parti_indx_ptr>(partition_, index_);
 };
 
 void phold::init_events(ev_vec<phold>& ret,
