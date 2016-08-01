@@ -38,7 +38,7 @@ void phold::init() {
   double lamda = 3.5;
   std::exponential_distribution<double> ex_distribution(lamda);
   for (int i = 0; i < EX_RAND_TABLE_SIZE; ++i) {
-    LATENCY_TABLE[i] = (long) ex_distribution(ex_generator) * EFFECTIVE_DECIMAL;
+    LATENCY_TABLE[i] = (long) (ex_distribution(ex_generator) * EFFECTIVE_DECIMAL);
   }
 
   /* Make random numbers table for deciding next logical process */
@@ -46,7 +46,7 @@ void phold::init() {
   std::default_random_engine uni_generator(uni_seed);
   std::uniform_real_distribution<double> uni_distribution(0.0, 1.0);
   for (int i = 0; i < UNI_RAND_TABLE_SIZE; ++i) {
-    REMOTE_COM_TABLE[i] = (int) uni_distribution(uni_generator) * EFFECTIVE_DECIMAL;
+    REMOTE_COM_TABLE[i] = (int) (uni_distribution(uni_generator) * EFFECTIVE_DECIMAL);
   }
 }
 

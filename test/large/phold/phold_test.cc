@@ -43,11 +43,64 @@ TEST (phold, init_partition) {
 }
 
 TEST (phold, init_event) {
-  ev_vec<phold> initial_events;
   phold simulation;
-  simulation.init_events(initial_events, 0, 1);
+  simulation.init(); /* Init Random Latency */
 
-  EXPECT_EQ(16, initial_events.size());
+  /* Test rank size = 1 */
+  ev_vec<phold> init_events;
+  simulation.init_events(init_events, 0, 1);
+
+  EXPECT_EQ(NUM_INIT_MSG, init_events.size());
+  for (auto itr = init_events.begin(); itr != init_events.end(); ++itr) {
+    long id = (*itr)->id();
+    /* Check Latency */
+    EXPECT_EQ((*itr)->send_time(), LATENCY_TABLE[id % EX_RAND_TABLE_SIZE]);
+    EXPECT_EQ((*itr)->receive_time(), LATENCY_TABLE[id % EX_RAND_TABLE_SIZE]);
+  }
+
+  /* Test multiple ranks (4 ranks) */
+  ev_vec<phold> init_events_rank0of4;
+  ev_vec<phold> init_events_rank1of4;
+  ev_vec<phold> init_events_rank2of4;
+  ev_vec<phold> init_events_rank3of4;
+
+  simulation.init_events(init_events_rank0of4, 0, 4);
+  simulation.init_events(init_events_rank1of4, 1, 4);
+  simulation.init_events(init_events_rank2of4, 2, 4);
+  simulation.init_events(init_events_rank3of4, 3, 4);
+
+  EXPECT_EQ(NUM_INIT_MSG,
+            init_events_rank0of4.size() + init_events_rank1of4.size()
+            + init_events_rank2of4.size() + init_events_rank3of4.size());
+  auto itr0 = init_events_rank0of4.begin();
+  auto itr1 = init_events_rank1of4.begin();
+  auto itr2 = init_events_rank2of4.begin();
+  auto itr3 = init_events_rank3of4.begin();
+  for (auto itr = init_events.begin(); itr != init_events.end(); ++itr) {
+    long id = (*itr)->id();
+    /* Check Latency */
+    if (id % 4 == 0) {
+      EXPECT_EQ((*itr)->id(), (*itr0)->id());
+      EXPECT_EQ((*itr)->send_time(), (*itr0)->send_time());
+      EXPECT_EQ((*itr)->receive_time(), (*itr0)->receive_time());
+      ++itr0;
+    } else if (id % 4 == 1) {
+      EXPECT_EQ((*itr)->id(), (*itr1)->id());
+      EXPECT_EQ((*itr)->send_time(), (*itr1)->send_time());
+      EXPECT_EQ((*itr)->receive_time(), (*itr1)->receive_time());
+      ++itr1;
+    } else if (id % 4 == 2) {
+      EXPECT_EQ((*itr)->id(), (*itr2)->id());
+      EXPECT_EQ((*itr)->send_time(), (*itr2)->send_time());
+      EXPECT_EQ((*itr)->receive_time(), (*itr2)->receive_time());
+      ++itr2;
+    } else if (id % 4 == 3) {
+      EXPECT_EQ((*itr)->id(), (*itr3)->id());
+      EXPECT_EQ((*itr)->send_time(), (*itr3)->send_time());
+      EXPECT_EQ((*itr)->receive_time(), (*itr3)->receive_time());
+      ++itr3;
+    }
+  }
 }
 
 TEST (phold, init_states) {
