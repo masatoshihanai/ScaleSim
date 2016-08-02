@@ -24,7 +24,7 @@ static long FINISH_TIME = 100000 * EFFECTIVE_DECIMAL;
 
 static const int RAND_TABLE_SIZE = 10000;
 static long LATENCY_TABLE[RAND_TABLE_SIZE];
-/* If value is 1, this is remote. Else if value is 0, this is local */
+/* If value is 1, send to remote. Else if value is 0, send to local */
 static int REMOTE_COM_TABLE[RAND_TABLE_SIZE];
 
 long phold::finish_time() {
