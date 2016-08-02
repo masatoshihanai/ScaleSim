@@ -14,29 +14,28 @@
 #include "phold.hpp"
 
 using namespace std;
-static const int EFFECTIVE_DECIMAL = 100000;
 
 static long NUM_LP = 100;
 static long NUM_INIT_MSG = 1600;
 static double REMOTE_COM_RATIO = 0.1;
-static long LOOK_AHEAD = 0.1 * EFFECTIVE_DECIMAL;
-static long FINISH_TIME = 100000 * EFFECTIVE_DECIMAL;
+static double LAMBDA = 1.0;
 
+static const int EFFECTIVE_DECIMAL = 100000;
+static const long LOOK_AHEAD = 0.1 * EFFECTIVE_DECIMAL;
 static const int RAND_TABLE_SIZE = 10000;
 static long LATENCY_TABLE[RAND_TABLE_SIZE];
 /* If value is 1, send to remote. Else if value is 0, send to local */
 static int REMOTE_COM_TABLE[RAND_TABLE_SIZE];
 
 long phold::finish_time() {
-  return FINISH_TIME;
+  return 100000 * EFFECTIVE_DECIMAL;
 }
 
 void phold::init() {
   /* Make random numbers table for deciding latency */
   int ex_seed = 1;
   std::default_random_engine ex_generator(ex_seed);
-  double lamda = 3.5;
-  std::exponential_distribution<double> ex_distribution(lamda);
+  std::exponential_distribution<double> ex_distribution(LAMBDA);
   for (int i = 0; i < RAND_TABLE_SIZE; ++i) {
     LATENCY_TABLE[i] = (long) (ex_distribution(ex_generator) * EFFECTIVE_DECIMAL);
   }
@@ -132,6 +131,12 @@ phold::event_handler(ev_ptr<phold> receive_event,
 
 int main(int argc, char* argv[]) {
   scalesim::runner<phold>::init_main(&argc, &argv);
+
+  NUM_LP = std::stol(argv[1]);
+  NUM_INIT_MSG = std::stol(argv[2]);
+  REMOTE_COM_RATIO = std::stod(argv[3]);
+  LAMBDA = std::stod(argv[4]);
+
   scalesim::runner<phold>::run();
   return 0;
 };
