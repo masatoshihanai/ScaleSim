@@ -66,6 +66,38 @@ TEST_F (lp_test_medium, insert_event) {
   EXPECT_FALSE(null_ptr);
 }
 
+TEST_F (lp_test_medium, direct_insert) {
+  /* initiate event */
+  long id_ = 0; long send_t_ = 0; long rec_t_ = 3; long dest_ = 99;
+  int path[100]; for (int i = 0; i < 100; ++i) { path[i] = 1; }
+  ev_ptr<test_app> event_(new event<test_app>(id_, send_t_, rec_t_, dest_, path));
+
+  lp<test_app> lp_(99);
+  /* Set up local_timestamp */
+  ev_ptr<test_app> tmp_ev0_(new event<test_app>(8888, 1, 2, 99, path));
+  ev_ptr<test_app> tmp_ev1_(new event<test_app>(7777, 3, 4, 99, path));
+  lp_.buffer(tmp_ev0_);
+  lp_.buffer(tmp_ev1_);
+  vector<ev_ptr<test_app> > dump_can;
+  lp_.flush_buf(dump_can);
+
+  EXPECT_EQ(2, lp_.local_time().time());
+
+  ev_ptr<test_app> tmp;
+  lp_.dequeue_event(tmp);
+  EXPECT_EQ(4, lp_.local_time().time());
+
+  /* Direct insert */
+  lp_.directInsert(event_);
+  EXPECT_EQ(rec_t_, lp_.local_time().time());
+
+  /* Get direct inserted event */
+  ev_ptr<test_app> actual;
+  lp_.dequeue_event(actual);
+  EXPECT_EQ(id_, actual->id());
+  EXPECT_EQ(4, lp_.local_time().time());
+}
+
 TEST_F (lp_test_medium, dequeue_null_ptr) {
   lp<test_app> lp_;
   ev_ptr<test_app> ret;

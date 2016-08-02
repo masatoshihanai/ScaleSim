@@ -516,7 +516,12 @@ void runner<App>::run_lp_aggr(lp<App>* lp_) {
         lp_->set_cancel(*it);
         timestamp tmstp((*it)->send_time(), (*it)->id());
         lp_->update_state(update->second, tmstp);
-        com_.send_event(*it);
+        if (state->id() == (*it)->destination()) {
+          /* Case of sending to same LP */
+          lp_->directInsert(*it);
+        } else {
+          com_.send_event(*it);
+        }
       }
     }
   }

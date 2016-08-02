@@ -52,6 +52,7 @@ class eventq {
  public:
   void buffering(const ev_ptr<App>& ev);
   timestamp merge_buffer(ev_vec<App>& new_cancels);
+  void directInsert(const ev_ptr<App>& ev);
   void increment(ev_ptr<App>& new_ev, timestamp* local_time_);
   void pop_back_cancels(const timestamp& lbound, ev_vec<App>& new_cancels);
   void set_cancel(const ev_ptr<App>& ev);
@@ -105,6 +106,12 @@ timestamp eventq<App>::merge_buffer(ev_vec<App>& new_cancels) {
 
   return min_stmp;
 }; /* merge_buffer() */
+
+template<class App>
+void eventq<App>::directInsert(const ev_ptr<App> &ev) {
+  timestamp stmp(ev->receive_time(), ev->id());
+  map_.insert(std::pair<timestamp, ev_ptr<App> >(stmp, ev));
+}
 
 template<class App>
 void eventq<App>::increment(ev_ptr<App>& new_ev, timestamp* local_time_) {

@@ -20,6 +20,7 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/unordered_map.hpp>
 #include <gflags/gflags.h>
+#include <glog/logging.h>
 #include "scalesim/logical_process/queue.hpp"
 #include "scalesim/logical_process/process_scheduler.hpp"
 #include "scalesim/logical_process/store/store_base.hpp"
@@ -65,6 +66,7 @@ class lp {
   long id() const;
   void buffer(const ev_ptr<App>& event);
   void flush_buf(std::vector<ev_ptr<App> >& new_cancels);
+  void directInsert(const ev_ptr<App>& event);
   void dequeue_event(ev_ptr<App>& new_ev);
   void get_state(st_ptr<App>& new_state);
   void set_cancel(const ev_ptr<App>& original_event);
@@ -152,6 +154,15 @@ void lp<App>::flush_buf(std::vector<ev_ptr<App>>& new_cancels) {
 
   (*cancel_counter_) += new_cancels.size();
 };
+
+template<class App>
+void lp<App>::directInsert(const ev_ptr<App> &event) {
+  DLOG_ASSERT(id_ == event->destination())
+      << " Direct insert is needed to send to same LP.";
+
+  eventq_.directInsert(event);
+  local_time_ = std::min(local_time_, timestamp(event->receive_time(), event->id()));
+}
 
 template<class App>
 void lp<App>::dequeue_event(ev_ptr<App>& new_ev) {
