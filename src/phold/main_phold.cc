@@ -115,7 +115,7 @@ phold::event_handler(ev_ptr<phold> receive_event,
   long dst_id = -1;
   if (REMOTE_COM_TABLE[rand_table_id] == 1) {
     /* Case of remote (send to different LP) */
-    dst_id = (int) LATENCY_TABLE[rand_table_id] % NUM_LP;
+    dst_id = LATENCY_TABLE[rand_table_id] % NUM_LP;
   } else { /* REMOTE_COM_TABLE[rand_table_id] == 0 */
     /* Case of local (send to this LP) */
     dst_id = receive_event->destination();
