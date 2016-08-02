@@ -54,8 +54,8 @@ TEST (phold, init_event) {
   for (auto itr = init_events.begin(); itr != init_events.end(); ++itr) {
     long id = (*itr)->id();
     /* Check Latency */
-    EXPECT_EQ((*itr)->send_time(), LATENCY_TABLE[id % EX_RAND_TABLE_SIZE]);
-    EXPECT_EQ((*itr)->receive_time(), LATENCY_TABLE[id % EX_RAND_TABLE_SIZE]);
+    EXPECT_EQ((*itr)->send_time(), LATENCY_TABLE[id % RAND_TABLE_SIZE]);
+    EXPECT_EQ((*itr)->receive_time(), LATENCY_TABLE[id % RAND_TABLE_SIZE]);
   }
 
   /* Test multiple ranks (4 ranks) */
@@ -144,7 +144,41 @@ TEST (phold, init_what_if) {
 }
 
 TEST (phold, event_hander) {
-  EXPECT_TRUE(false);
+  phold simulation;
+  simulation.init(); /* Init Random Table */
+  long ev_id = 999;
+  long src_id = 0; long dst_id = 1;
+  long rec_time = 10000; long send_time = 10090;
+  int num_hops = 8;
+
+  ev_ptr<phold> ev = boost::make_shared<event<phold> >(
+      event<phold>(ev_id, src_id, dst_id, rec_time, send_time, num_hops));
+  st_ptr<phold> st = boost::make_shared<state<phold> >(
+      state<phold>(dst_id));
+
+  auto ret = simulation.event_handler(ev, st);
+
+  ev_ptr<phold> ret_ev = *(ret->first.begin());
+  st_ptr<phold> ret_st = ret->second;
+  EXPECT_EQ(ret_st->id(), dst_id);
+  EXPECT_EQ(ret_ev->id(), ev_id);
+  EXPECT_EQ(ret_ev->source(), dst_id);
+  EXPECT_EQ(ret_ev->send_time(), rec_time);
+  EXPECT_EQ(ret_ev->num_hops() - num_hops, 1);
+
+  /* Latency of an event is LATENCY_TABLE[(event id) + (num_hops)] */
+  int rand_table_id = (int)(ret_ev->id() + (long) ret_ev->num_hops()) % RAND_TABLE_SIZE;
+  EXPECT_EQ(ret_ev->receive_time() - ret_ev->send_time(),
+            LATENCY_TABLE[rand_table_id] + LOOK_AHEAD);
+
+  /* Whether an event send remote or local is decided by REMOTE_COM_TABLE[(event id) + (num_hops)] */
+  if (REMOTE_COM_TABLE[rand_table_id] == 1) {
+    /* Case of remote (send different LP) */
+    EXPECT_NE(ret_ev->destination(), dst_id);
+  } else { /* REMOTE_COM_TABLE[rand_table_id] == 0 */
+    /* Case of local (send same LP) */
+    EXPECT_EQ(ret_ev->destination(), dst_id);
+  }
 }
 
 } /* namespace */

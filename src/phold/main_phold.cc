@@ -22,10 +22,10 @@ static double REMOTE_COM_RATIO = 0.1;
 static long LOOK_AHEAD = 0.1 * EFFECTIVE_DECIMAL;
 static long FINISH_TIME = 100000 * EFFECTIVE_DECIMAL;
 
-static const int EX_RAND_TABLE_SIZE = 10000;
-static long LATENCY_TABLE[EX_RAND_TABLE_SIZE];
-static const int UNI_RAND_TABLE_SIZE = 1000;
-static int REMOTE_COM_TABLE[UNI_RAND_TABLE_SIZE];
+static const int RAND_TABLE_SIZE = 10000;
+static long LATENCY_TABLE[RAND_TABLE_SIZE];
+/* If value is 1, this is remote. Else if value is 0, this is local */
+static int REMOTE_COM_TABLE[RAND_TABLE_SIZE];
 
 long phold::finish_time() {
   return FINISH_TIME;
@@ -37,7 +37,7 @@ void phold::init() {
   std::default_random_engine ex_generator(ex_seed);
   double lamda = 3.5;
   std::exponential_distribution<double> ex_distribution(lamda);
-  for (int i = 0; i < EX_RAND_TABLE_SIZE; ++i) {
+  for (int i = 0; i < RAND_TABLE_SIZE; ++i) {
     LATENCY_TABLE[i] = (long) (ex_distribution(ex_generator) * EFFECTIVE_DECIMAL);
   }
 
@@ -45,8 +45,12 @@ void phold::init() {
   int uni_seed = 1;
   std::default_random_engine uni_generator(uni_seed);
   std::uniform_real_distribution<double> uni_distribution(0.0, 1.0);
-  for (int i = 0; i < UNI_RAND_TABLE_SIZE; ++i) {
-    REMOTE_COM_TABLE[i] = (int) (uni_distribution(uni_generator) * EFFECTIVE_DECIMAL);
+  for (int i = 0; i < RAND_TABLE_SIZE; ++i) {
+    if (uni_distribution(uni_generator) < REMOTE_COM_RATIO) {
+      REMOTE_COM_TABLE[i] = 1; /* case of remote */
+    } else {
+      REMOTE_COM_TABLE[i] = 0; /* case of local */
+    }
   }
 }
 
@@ -72,8 +76,8 @@ void phold::init_events(ev_vec<phold>& ret,
     if (id % rank_size == rank) {
       ret.push_back(boost::make_shared<event<phold> > (
           event<phold>(id, id % NUM_LP, id % NUM_LP,
-                       LATENCY_TABLE[id % EX_RAND_TABLE_SIZE],
-                       LATENCY_TABLE[id % EX_RAND_TABLE_SIZE],
+                       LATENCY_TABLE[id % RAND_TABLE_SIZE],
+                       LATENCY_TABLE[id % RAND_TABLE_SIZE],
                        0)));
     }
   }
@@ -98,10 +102,32 @@ void phold::init_what_if(
 };
 
 
-boost::optional<pair<vector<ev_ptr<phold> >, st_ptr<phold> > >
+boost::optional<pair<ev_vec<phold>, st_ptr<phold> > >
 phold::event_handler(ev_ptr<phold> receive_event,
                      st_ptr<phold> state) {
-  // TODO
+  ev_vec<phold> new_events;
+  long ev_id = receive_event->id();
+  long src_id = receive_event->destination();
+  long send_time = receive_event->receive_time();
+  int num_hops = 1 + receive_event->num_hops();
+
+  int rand_table_id = (int) (ev_id + (long) num_hops) % RAND_TABLE_SIZE;
+  long receive_time = send_time + LATENCY_TABLE[rand_table_id] + LOOK_AHEAD;
+  long dst_id = -1;
+  if (REMOTE_COM_TABLE[rand_table_id] == 1) {
+    /* Case of remote (send to different LP) */
+    dst_id = (int) LATENCY_TABLE[rand_table_id] % NUM_LP;
+  } else { /* REMOTE_COM_TABLE[rand_table_id] == 0 */
+    /* Case of local (send to this LP) */
+    dst_id = receive_event->destination();
+  }
+
+  new_events.push_back(
+      boost::make_shared<event<phold> >(
+          event<phold>(ev_id, src_id, dst_id, receive_time, send_time, num_hops)));
+
+  return boost::optional<pair<ev_vec<phold>, st_ptr<phold> > > (
+      pair<ev_vec<phold>, st_ptr<phold> >(new_events, state));
 };
 
 int main(int argc, char* argv[]) {

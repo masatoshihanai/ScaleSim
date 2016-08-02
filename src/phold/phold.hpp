@@ -64,6 +64,7 @@ class phold: public scalesim::application {
     long receive_time() const { return receive_time_; };
     long send_time() const { return send_time_; };
     int size() const { return sizeof(*this); };
+    int num_hops() const { return num_hops_; };
 
     friend class boost::serialization::access;
    private:
@@ -162,7 +163,7 @@ class phold: public scalesim::application {
    *
    * If there are no new event and state generated, return empty option.
    */
-  boost::optional<std::pair<std::vector<ev_ptr<phold> >, st_ptr<phold> > >
+  boost::optional<std::pair<ev_vec<phold>, st_ptr<phold> > >
   event_handler(ev_ptr<phold> receive_event, st_ptr<phold> state);
 };
 
