@@ -44,11 +44,11 @@ class application {
   static int global_cut_interval() { return 20; };
 
   /*
-   * # of thread
-   * The effective # is (# of processors) + 1.
+   * # of thread for processing simulation event
+   * In general, the effective # is (# of processors) + 1 per Node.
    * For instance, when a machine has 4 cores, 5 (4 core + 1) is effective.
    */
-  static int num_thr () { return 2; };
+  static int num_thr () { return boost::thread::physical_concurrency(); };
 
   /*
    * Simulation finishes when global time >= finish_time().
