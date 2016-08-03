@@ -459,7 +459,8 @@ void runner<App>::finish() {
     << " # of global synchronizations   : " << counter::sum("GVT") << "\n"
     << " # of processing events         : " << num_ev_prcss_sum << "\n"
     << " # of cancels (= # of rollback) : " << num_cancel_sum << "\n"
-    << " # of output events             : " << num_output_events_sum << "\n\n"
+    << " # of output events             : " << num_output_events_sum << "\n"
+    << " Rollback efficiency            : " << (((float) (num_ev_prcss_sum - num_cancel_sum)) / ((float) num_ev_prcss_sum)) << "\n\n"
     << " Approximate total store usage       : " << store_usage_ev_*2 + store_usage_st_ << " byte \n"
     << "     Approximate store events usage  : " << store_usage_ev_ << " byte \n"
     << "     Approximate store cancels usage : " << store_usage_ev_ << " byte \n"
@@ -516,12 +517,14 @@ void runner<App>::run_lp_aggr(lp<App>* lp_) {
         lp_->set_cancel(*it);
         timestamp tmstp((*it)->send_time(), (*it)->id());
         lp_->update_state(update->second, tmstp);
-        if (state->id() == (*it)->destination()) {
-          /* Case of sending to same LP */
-          lp_->directInsert(*it);
-        } else {
-          com_.send_event(*it);
-        }
+        // FIXME There is a bug in the optimization of directInsert().
+        //if (state->id() == (*it)->destination()) {
+        //  /* Case of sending to same LP */
+        //  lp_->directInsert(*it);
+        //} else {
+        //  com_.send_event(*it);
+        //}
+        com_.send_event(*it);
       }
     }
   }
