@@ -125,7 +125,7 @@ class mpi_receiver {
 template<class App>
 void mpi_receiver<App>::receive(
     const boost::function<void(const ev_ptr<App>&)>& call_back_f) {
-  if (comm_world_->iprobe()) {
+  while (comm_world_->iprobe()) {
     stopwatch::instance("PartiToPartiCommunication")->start();
     event<App> event_;
     comm_world_->recv(boost::mpi::any_source, 0, event_);
