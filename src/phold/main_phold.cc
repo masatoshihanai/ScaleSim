@@ -31,6 +31,14 @@ long phold::finish_time() {
   return 100000 * EFFECTIVE_DECIMAL;
 }
 
+long phold::gsync_interval() { return 10; };
+
+long phold::switch_lp_interval() { return 4; };
+
+int phold::global_cut_interval() { return 10; };
+
+int phold::num_thr() { return boost::thread::physical_concurrency(); };
+
 void phold::init() {
   /* Make random numbers table for deciding latency */
   int ex_seed = 1;

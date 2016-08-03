@@ -102,11 +102,13 @@ class phold: public scalesim::application {
   }; /* class State */
 
  public:
-  /*
-   * Return finish time of the simulation
-   */
-  static long finish_time();
+  /* System configuration */
+  static long gsync_interval();
+  static long switch_lp_interval();
+  static int global_cut_interval();
+  static int num_thr();
 
+  static long finish_time();
   /*
    * Initiation function for application.
    * It is invoked before all initiation functions.
