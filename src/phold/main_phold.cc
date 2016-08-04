@@ -113,7 +113,20 @@ void phold::init_what_if(
          vector<boost::shared_ptr<const scalesim::what_if<phold> > >& ret,
          const int rank,
          const int rank_size) {
-  // TODO
+  /* Generate what-if scenario */
+  for (long i = 0; i < NUM_WHAT_IF; ++i) {
+    LP_OF_WHATIF.push_back(i); /* Just select LP0, LP1, LP2,,, */
+    TIME_OF_WHATIF.push_back(0); /* Every what-ifs is from Zero */
+  }
+
+  /* Init what-if scenario */
+  for (long i = 0; i < NUM_WHAT_IF; ++i) {
+    long lp_id = LP_OF_WHATIF[i];
+    long time = TIME_OF_WHATIF[i];
+    event<phold> add_event(NUM_INIT_MSG + i, lp_id, lp_id, time, time, 0);
+    ret.push_back(boost::make_shared<scalesim::what_if<phold> >(
+        scalesim::what_if<phold>(lp_id, time, add_event)));
+  }
 };
 
 
