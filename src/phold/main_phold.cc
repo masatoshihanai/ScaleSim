@@ -129,7 +129,6 @@ void phold::init_what_if(
   }
 };
 
-
 boost::optional<pair<ev_vec<phold>, st_ptr<phold> > >
 phold::event_handler(ev_ptr<phold> receive_event,
                      st_ptr<phold> state) {
