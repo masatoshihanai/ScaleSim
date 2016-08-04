@@ -15,10 +15,21 @@
 
 using namespace std;
 
+/* Parameter of PHOLD */
 static long NUM_LP = 100;
 static long NUM_INIT_MSG = 1600;
 static double REMOTE_COM_RATIO = 0.1;
 static double LAMBDA = 1.0;
+
+/* Parameter of what-if */
+static long NUM_WHAT_IF = 1;
+static vector<long> TIME_OF_WHATIF;
+static vector<long> LP_OF_WHATIF;
+
+/* Parameter of System */
+static long GSYNC_INTERVAL = 10;
+static long LP_INTERVAL = 4;
+static int GTW_CUT_INTERVAL = 50;
 
 static const int EFFECTIVE_DECIMAL = 100000;
 static const long LOOK_AHEAD = 0.1 * EFFECTIVE_DECIMAL;
@@ -28,15 +39,12 @@ static long LATENCY_TABLE[RAND_TABLE_SIZE];
 static int REMOTE_COM_TABLE[RAND_TABLE_SIZE];
 
 long phold::finish_time() {
-  return 100000 * EFFECTIVE_DECIMAL;
+  return 10 * EFFECTIVE_DECIMAL;
 }
 
-long phold::gsync_interval() { return 10; };
-
-long phold::switch_lp_interval() { return 4; };
-
-int phold::global_cut_interval() { return 10; };
-
+long phold::gsync_interval() { return GSYNC_INTERVAL; };
+long phold::switch_lp_interval() { return LP_INTERVAL; };
+int phold::global_cut_interval() { return GTW_CUT_INTERVAL; };
 int phold::num_thr() { return boost::thread::physical_concurrency(); };
 
 void phold::init() {
