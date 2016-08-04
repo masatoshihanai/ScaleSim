@@ -117,7 +117,7 @@ else ()
 endif ()
 
 ### Include file ###
-include_directories (~/include "$ENV{BOOST_HOME}" include src test)
+include_directories (. ~/include "$ENV{BOOST_HOME}" include src test)
 
 ### Compile own include files ###
 add_library (scalelib STATIC
@@ -169,9 +169,9 @@ target_link_libraries (TrafficSim
 ### PHOLD simulation ###
 add_executable (PHOLD ./src/phold/main_phold.cc)
 target_link_libraries (PHOLD
-    scalelib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${REDIS} ${GLOG} ${GFLAGS})
+    scalelib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${GLOG} ${GFLAGS})
 
 add_executable (PHOLD_TEST test/large/phold/phold_test.cc)
 target_link_libraries (PHOLD_TEST                     
-    scalelib scale_testlib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${BERKELEY_DB} ${REDIS} ${GLOG} ${GFLAGS} ${GTEST} ${GTEST_MAIN})
+    scalelib scale_testlib ${BOOST_MPI} ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION} ${BOOST_FILESYSTEM} ${LEVEL_DB} ${SNAPPY} ${GLOG} ${GFLAGS} ${GTEST} ${GTEST_MAIN})
 
