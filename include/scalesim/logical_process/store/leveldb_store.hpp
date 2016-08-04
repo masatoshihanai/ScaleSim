@@ -10,6 +10,7 @@
 #ifndef SCALESIM_LOGICAL_PROCESS_STORE_LEVELDB_STORE_HPP_
 #define SCALESIM_LOGICAL_PROCESS_STORE_LEVELDB_STORE_HPP_
 
+#include <unistd.h>
 #include <boost/filesystem.hpp>
 #include <boost/thread.hpp>
 #include <boost/shared_ptr.hpp>
@@ -26,6 +27,9 @@
 
 namespace scalesim {
 
+/* Memory ratio from all system memory for write-buffer */
+static const double WRITE_BUF_MEM_RATIO = 0.1; /* 10% of system memory for buffer */
+
 template<class Object>
 class leveldb_store {
   typedef boost::shared_ptr<const Object> obj_ptr;
@@ -38,6 +42,9 @@ class leveldb_store {
 
  private:
   leveldb::DB* db;
+  leveldb::WriteBatch* batch;
+  std::string db_path_str_;
+  std::string type_;
   boost::mutex put_mutex_;
   boost::mutex get_mutex_;
 
@@ -70,7 +77,6 @@ void leveldb_store<Object>::init(const std::string& obj_type, const int rank) {
       << " FLAGS failure. You have to set directory path from commandline. "
       << " Run with --help,"
       << " and see how to run Differential Execution with file system.";
-  std::string rank_str;
   std::stringstream ss_rank;
   ss_rank << rank;
   std::string id_path_str_ = FLAGS_store_dir + "/" + FLAGS_sim_id;
@@ -85,10 +91,14 @@ void leveldb_store<Object>::init(const std::string& obj_type, const int rank) {
   leveldb::Options options;
   options.create_if_missing = true;
   options.error_if_exists = true;
-  std::string db_path_str_ = id_path_str_ + "/" + obj_type + ss_rank.str();
+  options.write_buffer_size
+      = (size_t)(sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGE_SIZE) * WRITE_BUF_MEM_RATIO);
+  type_ = obj_type;
+  db_path_str_ = id_path_str_ + "/" + type_ + ss_rank.str();
   leveldb::Status status = leveldb::DB::Open(options, db_path_str_, &db);
   DLOG_ASSERT(status.ok()) << status.ToString();
   LOG(INFO) << "Open database: " << db_path_str_;
+  batch = new leveldb::WriteBatch();
 };
 
 template<class Object>
@@ -97,7 +107,6 @@ void leveldb_store<Object>::init_read(const std::string& type, const int rank) {
       << " FLAGS failure. You have to set directory path from commandline. "
       << " Run with --help,"
       << " and see how to run Differential Execution with file system.";
-  std::string rank_str;
   std::stringstream ss_rank;
   ss_rank << rank;
   std::string id_path_str_ = FLAGS_store_dir + "/" + FLAGS_sim_id;
@@ -117,10 +126,27 @@ void leveldb_store<Object>::init_read(const std::string& type, const int rank) {
   leveldb::Status status = leveldb::DB::Open(options, db_path_str_, &db);
   DLOG_ASSERT(status.ok()) << status.ToString();
   LOG(INFO) << "Open database: " << db_path_str_;
+  batch = NULL;
 }
 
 template<class Object>
 void leveldb_store<Object>::finish() {
+  if (batch) {
+    stopwatch::instance("DBWrite")->start();
+    db->Write(leveldb::WriteOptions(), batch);
+    delete batch;
+    batch = NULL;
+    stopwatch::instance("DBWrite")->stop();
+    /* Check DB size */
+    int size = 0;
+    for (boost::filesystem::recursive_directory_iterator it(db_path_str_);
+         it != boost::filesystem::recursive_directory_iterator(); ++it) {
+      if(!boost::filesystem::is_directory(*it)) {
+        size += boost::filesystem::file_size(*it);
+      }
+    }
+    *scalesim::counter::instance("FileSize::" + type_) += size;
+  }
   delete db;
   db = NULL;
 };
@@ -128,7 +154,7 @@ void leveldb_store<Object>::finish() {
 template<class Object>
 void leveldb_store<Object>::clear_db() {
   /* delete db */
-  if (!db) { delete db; db = NULL; }
+  if (db) { delete db; db = NULL; }
 
   /* delete files */
   boost::filesystem::path dir(FLAGS_store_dir);
@@ -138,7 +164,6 @@ void leveldb_store<Object>::clear_db() {
 template<class Object>
 void leveldb_store<Object>::put(const timestamp& time, const long id,
                                 const Object& value) {
-  boost::lock_guard<boost::mutex> guard(put_mutex_);
   /* generate key */
   std::vector<char> key;
   key_lpid_to_char(time, id, key);
@@ -150,9 +175,11 @@ void leveldb_store<Object>::put(const timestamp& time, const long id,
   std::string obj_binary = ss.str();
 
   /* put object */
-  leveldb::Slice db_key((char*) &key[0], key.size());
-  leveldb::Status s = db->Put(leveldb::WriteOptions(), db_key, obj_binary);
-  if (!s.ok()) { std::cout << s.ToString() << std::endl; }
+  leveldb::Slice db_key((char *) &key[0], key.size());
+  {
+    boost::lock_guard<boost::mutex> guard(put_mutex_);
+    batch->Put(db_key, obj_binary);
+  }
 };
 
 template<class Object>
@@ -161,7 +188,6 @@ void leveldb_store<Object>::put_range(const std::vector<timestamp>& keys,
                                       const long id) {
   boost::lock_guard<boost::mutex> guard(put_mutex_);
   { /* batch write */
-    leveldb::WriteBatch batch;
     for (int i = 0; i < keys.size(); ++i) {
       /* generate key */
       std::vector<char> key;
@@ -175,27 +201,22 @@ void leveldb_store<Object>::put_range(const std::vector<timestamp>& keys,
 
       /* put object */
       leveldb::Slice db_key((char*) &key[0], key.size());
-      batch.Put(db_key, obj_binary);
+      batch->Put(db_key, obj_binary);
     }
-    db->Write(leveldb::WriteOptions(), &batch);
   }
-
-  /* manual merge in same lp */
-  std::vector<char> from_key;
-  key_lpid_to_char(timestamp::zero(), id, from_key);
-  std::vector<char> to_key;
-  key_lpid_to_char(timestamp::max(), id, to_key);
-
-  leveldb::Slice from((char*) &from_key[0], from_key.size());
-  leveldb::Slice to((char*) &to_key[0], to_key.size());
-
-  db->CompactRange(&from, &to);
 };
 
 template<class Object>
 void leveldb_store<Object>::get(const timestamp& time, const long lp_id,
                                 obj_ptr& ret) {
   boost::lock_guard<boost::mutex> guard(get_mutex_);
+  /* For TEST */
+  if (batch) {
+    db->Write(leveldb::WriteOptions(), batch);
+    delete batch;
+    batch = new leveldb::WriteBatch();
+  }
+
   /* generate key */
   std::vector<char> key;
   key_lpid_to_char(time, lp_id, key);
@@ -220,6 +241,13 @@ void leveldb_store<Object>::get_prev(const timestamp& time,
                                      obj_ptr& ret,
                                      timestamp& time_of_ret) {
   boost::lock_guard<boost::mutex> guard(get_mutex_);
+  /* For TEST */
+  if (batch) {
+    db->Write(leveldb::WriteOptions(), batch);
+    delete batch;
+    batch = new leveldb::WriteBatch();
+  }
+
   /* generate key */
   std::vector<char> key;
   key_lpid_to_char(time, lp_id, key);
@@ -259,6 +287,13 @@ void leveldb_store<Object>::get_range(const timestamp& from,
                                       std::vector<obj_ptr>& ret_obj) {
   if (from == to || from > to) return;
   boost::lock_guard<boost::mutex> guard(get_mutex_);
+  /* For TEST */
+  if (batch) {
+    db->Write(leveldb::WriteOptions(), batch);
+    delete batch;
+    batch = new leveldb::WriteBatch();
+  }
+
   /* generate key */
   std::vector<char> key_from_;
   key_lpid_to_char(from, lp_id, key_from_);

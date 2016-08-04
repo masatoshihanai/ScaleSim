@@ -248,6 +248,7 @@ class lp_mngr {
   void init_partition (const std::pair<parti_ptr, parti_indx_ptr>& parti);
   void init_lps(int this_rank, int rank_size);
   void init_scheduler(std::vector<scheduler<App> >* scheduler);
+  void finish_lps();
   void delete_lps(int this_rank);
   void get_lp(lp<App>*& lp, long id);
   parti_ptr partition();
@@ -288,20 +289,22 @@ void lp_mngr<App>::init_scheduler(std::vector<scheduler<App> >* scheduler)
   { lp<App>::init_scheduler(scheduler); };
 
 template<class App>
+void lp_mngr<App>::finish_lps() {
+  if (FLAGS_diff_init) {
+    store<App>::finish();
+  }
+  if (FLAGS_diff_repeat) {
+    store<App>::finish();
+  }
+}
+
+template<class App>
 void lp_mngr<App>::delete_lps(int this_rank) {
   /* delete logical processes */
   auto rng_ = partition_index->equal_range(this_rank);
   for (auto it = rng_.first; it != rng_.second; ++it) {
     delete lps_[it->second];
     lps_[it->second] = 0;
-  }
-
-  /* delete stores */
-  if (FLAGS_diff_init) {
-    store<App>::finish();
-  }
-  if (FLAGS_diff_repeat) {
-    store<App>::finish();
   }
 };
 

@@ -371,6 +371,7 @@ void runner<App>::loop() {
 
     if (gvt_.check_updated()) {
       /* output results */
+      stopwatch::instance("OutPutResult")->start();
       for (int i = 0; i < schedulers_.size(); ++i) {
         for (auto it = schedulers_[i].active_lp()->begin();
              it != schedulers_[i].active_lp()->end(); ++it) {
@@ -379,6 +380,7 @@ void runner<App>::loop() {
           lp_->std_out(std::min(gvt_.gtime(), timestamp(App::finish_time(),0)));
         }
       }
+      stopwatch::instance("OutPutResult")->stop();
 
       /* clear (store) events/states */
       stopwatch::instance("Clear")->start();
@@ -399,6 +401,7 @@ void runner<App>::loop() {
 template <class App>
 void runner<App>::finish() {
   com_.stop();
+  lp_mngr_.finish_lps();
 
   bool wait = true;
   com_.barrier(wait);
@@ -409,6 +412,13 @@ void runner<App>::finish() {
   com_.reduce_sum(wait, ev_prcss_time_sum,
                   stopwatch::instance("EventProcessing")->time_ms());
   while (wait);
+
+  /* Sum up result outputting elapsed time in all ranks */
+  long output_result_sum = 0;
+  com_.reduce_sum(wait, output_result_sum,
+                  stopwatch::instance("OutPutResult")->time_ms());
+  while (wait);
+
   /* Sum up communication time */
   long communication_time_ = 0;
   com_.reduce_sum(wait, communication_time_,
@@ -419,11 +429,21 @@ void runner<App>::finish() {
   com_.reduce_sum(wait, global_sync_time_,
                   stopwatch::instance("GlobalSync")->time_ms());
   while(wait);
-  /* Sum up clear events, cancels & states time */
+  /* Sum up clear/store events, cancels & states time */
   long clear_objects_time_ = 0;
   com_.reduce_sum(wait, clear_objects_time_,
                   stopwatch::instance("Clear")->time_ms());
   while(wait);
+  /* Sum up Write to DB time.
+   *   The difference from clear_objects_time_
+   *     ,which includes object serialization & data conversion,
+   *   is that write_to_disk_time_ only includes time to flush the data to disk.
+   */
+  long write_to_disk_time_ = 0;
+  com_.reduce_sum(wait, write_to_disk_time_,
+                  stopwatch::instance("DBWrite")->time_ms());
+  while(wait);
+
   /* Sum up # of processing events */
   long num_ev_prcss_sum = counter::sum("Events");
   com_.reduce_sum(wait, num_ev_prcss_sum, num_ev_prcss_sum);
@@ -446,25 +466,45 @@ void runner<App>::finish() {
   com_.reduce_sum(wait, store_usage_st_, store_usage_st_);
   while (wait);
 
+  /* Sum up DB size */
+  long event_db_size = 0;
+  com_.reduce_sum(wait, event_db_size, counter::sum("FileSize::event"));
+  while (wait);
+
+  long cancel_db_size = 0;
+  com_.reduce_sum(wait, cancel_db_size, counter::sum("FileSize::cancel"));
+  while (wait);
+
+  long state_db_size = 0;
+  com_.reduce_sum(wait, state_db_size, counter::sum("FileSize::state"));
+  while (wait);
+
+
   LOG_IF(INFO, com_.rank() == 0) << "Finish Simulation";
   LOG_IF(INFO, com_.rank() == 0)
     << "\n====================================================================\n"
     << " Simulation elapsed time: " << stopwatch::instance("Simulation")->time_ms() << " ms\n"
-    << "     Average all events processing time   : " << ev_prcss_time_sum / com_.rank_size() << " ms/partition\n"
-    << "     Average one event processing time    : " << ((float) ev_prcss_time_sum) / ((float) num_output_events_sum) / ((float) com_.rank_size())<< " ms/event \n"
-    << "     Average comm time between partitions : " << communication_time_ / com_.rank_size() << " ms/partition \n"
-    << "     Global synchronization time          : " << global_sync_time_ / com_.rank_size() << " ms/partition \n"
-    << "     Clear(store) object time             : " << clear_objects_time_ / com_.rank_size() << " ms/partition \n"
+    << "     Average all events processing time      : " << ev_prcss_time_sum / com_.rank_size() << " ms/partition\n"
+    << "     Average one event processing time       : " << ((float) ev_prcss_time_sum) / ((float) num_output_events_sum) / ((float) com_.rank_size())<< " ms/event \n"
+    << "     Average output results time             : " << output_result_sum /com_.rank_size() << " ms/partition \n"
+    << "     Average comm time between partitions    : " << communication_time_ / com_.rank_size() << " ms/partition \n"
+    << "     Global synchronization time             : " << global_sync_time_ / com_.rank_size() << " ms/partition \n"
+    << "     Object clear & store (serialize) time   : " << clear_objects_time_ / com_.rank_size() << " ms/partition \n"
+    << "     Write to disk time                      : " << write_to_disk_time_ / com_.rank_size() << " ms/partition \n"
     << "\n"
     << " # of global synchronizations   : " << counter::sum("GVT") << "\n"
     << " # of processing events         : " << num_ev_prcss_sum << "\n"
     << " # of cancels (= # of rollback) : " << num_cancel_sum << "\n"
     << " # of output events             : " << num_output_events_sum << "\n"
     << " Rollback efficiency            : " << (((float) (num_ev_prcss_sum - num_cancel_sum)) / ((float) num_ev_prcss_sum)) << "\n\n"
-    << " Approximate total store usage       : " << store_usage_ev_*2 + store_usage_st_ << " byte \n"
-    << "     Approximate store events usage  : " << store_usage_ev_ << " byte \n"
-    << "     Approximate store cancels usage : " << store_usage_ev_ << " byte \n"
-    << "     Approximate store states usage  : " << store_usage_st_ << " byte \n"
+    << " DataBase size       : " << (event_db_size + cancel_db_size + state_db_size) << " byte \n"
+    << "     Events size     : " << event_db_size << " byte \n"
+    << "     Cancels size    : " << cancel_db_size << " byte \n"
+    << "     States size     : " << state_db_size << " byte \n\n"
+    << " Stored objects size : " << store_usage_ev_*2 + store_usage_st_ << " byte \n"
+    << "     Events size     : " << store_usage_ev_ << " byte \n"
+    << "     Cancels size    : " << store_usage_ev_ << " byte \n"
+    << "     States size     : " << store_usage_st_ << " byte \n"
     << "====================================================================\n";
   wait = true;
   com_.barrier(wait);

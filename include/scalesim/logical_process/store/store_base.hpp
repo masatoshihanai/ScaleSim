@@ -17,8 +17,8 @@
 
 namespace scalesim {
 
-//template<class Object> using db_store = leveldb_store<Object>;
-template<class Object> using db_store = berkeleydb_store<Object>;
+template<class Object> using db_store = leveldb_store<Object>;
+//template<class Object> using db_store = berkeleydb_store<Object>;
 //template<class Object> using db_store = redis_store<Object>;
 
 template<class App>

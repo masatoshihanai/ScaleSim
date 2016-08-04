@@ -117,14 +117,14 @@ class what_if {
   long delete_event_id_ = -1;
  private:
   friend class boost::serialization::access;
- template<class Archive>
+  template<class Archive>
   void serialize(Archive& ar, unsigned int version) {
-   ar & lp_id_;
-   ar & time_;
-   ar & update_state_;
-   ar & add_event_;
-   ar & delete_event_id_;
- };
+    ar & lp_id_;
+    ar & time_;
+    ar & update_state_;
+    ar & add_event_;
+    ar & delete_event_id_;
+  };
 };
 
 } /* namespace scalesim */
