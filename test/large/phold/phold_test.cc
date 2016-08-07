@@ -11,10 +11,10 @@
 #include "gflags/gflags.h"
 #include "gtest/gtest.h"
 
-#include "phold/phold.hpp"
+//#define main foo /* for compiling main_phold.cc by gtest */
 
-#define main foo /* for compiling main_phold.cc by gtest */
-#include "phold/main_phold.cc"
+#include "phold/phold.hpp"
+//#include "phold/main_phold.cc"
 
 namespace {
 

@@ -28,7 +28,17 @@ namespace scalesim {
 
 template <class App>
 class runner {
+ public:
+  runner(): pool(App::num_thr()),
+            schedulers_(App::num_thr()),
+            byte_events(0),
+            byte_state(0){};
+  virtual ~runner(){};
+  void init_main(int* argc, char** argv[]);
+  void run();
  private:
+  runner(const runner&);
+  void operator=(const runner&);
   App app_;
   event_com<App> com_;
   gvt_com<App> gvt_;
@@ -36,15 +46,6 @@ class runner {
   thr_pool pool;
   std::vector<scheduler<App> > schedulers_;
   long byte_events, byte_state;
- private:
-  runner(): pool(App::num_thr()),
-            schedulers_(App::num_thr()),
-            byte_events(0),
-            byte_state(0){};
-  virtual ~runner(){};
-  runner(const runner&);
-  void operator=(const runner&);
-
  private:
   int simulation();
 
@@ -56,10 +57,6 @@ class runner {
   void run(int scheduler_id);
   void run_lp_aggr(lp<App>* lp);
   void clear(int scheduler_id, const timestamp& time);
-
- public:
-  static void init_main(int* argc, char** argv[]);
-  static void run();
 };
 
 template <class App>
@@ -454,7 +451,8 @@ void runner<App>::finish() {
   while (wait);
   /* Sum up # of outputted events */
   long num_output_events_sum = counter::sum("OutputtedEvent");
-  long store_usage_ev_ = num_output_events_sum * byte_events;
+  long store_usage_ev_ = 0;
+  if (FLAGS_diff_init) store_usage_ev_ = num_output_events_sum * byte_events;
   com_.reduce_sum(wait, num_output_events_sum, num_output_events_sum);
   while (wait);
   /* Sum up store usage of events */
@@ -462,7 +460,8 @@ void runner<App>::finish() {
   while (wait);
 
   /* Sum up store usage of State */
-  long store_usage_st_ = byte_state * counter::sum("StateClear");
+  long store_usage_st_ = 0;
+  if(FLAGS_diff_init) store_usage_st_ = byte_state * counter::sum("StateClear");
   com_.reduce_sum(wait, store_usage_st_, store_usage_st_);
   while (wait);
 
@@ -620,7 +619,7 @@ void runner<App>::init_main(int* argc, char** argv[]) {
 
 template<class App>
 void runner<App>::run() {
-  runner<App>().simulation();
+  simulation();
 };
 
 } /* namespace scalesim */
