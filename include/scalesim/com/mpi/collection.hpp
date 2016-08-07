@@ -23,7 +23,8 @@ class mpi_collection {
   mpi_collection(const mpi_collection&);
   void operator=(const mpi_collection&);
  public:
-  mpi_collection(): wait_(false){};
+  mpi_collection(): wait_(false), wait_barrier_(NULL), wait_shuffle_ev_(NULL),
+                    wait_shuffle_what_if_(NULL), wait_reduce_(NULL), reduce_ret_(NULL){};
   virtual ~mpi_collection(){};
  private:
   const boost::mpi::communicator* com_world_;
