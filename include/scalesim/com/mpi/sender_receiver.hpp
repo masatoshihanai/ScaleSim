@@ -51,7 +51,6 @@ void mpi_sender<App>::init(const boost::mpi::communicator* communicator) {
   for (int i = 0; i < communicator->size(); ++i) {
     (*buffer_)[i] = new std::vector<event<App> >();
     (*send_events_)[i] = new std::vector<event<App> >();
-    std::cout << send_events_->size() << std::endl;
   }
 }
 
