@@ -22,7 +22,8 @@ class mpi_gsync {
   mpi_gsync(const mpi_gsync&);
   void operator=(const mpi_gsync&);
 
-  mpi_gsync(): transit_counter_(0),
+  mpi_gsync(): send_counter_(0),
+               rec_counter_(0),
                is_red_(false),
                processing_ev_interval_(0),
                local_min_(timestamp::null()),
@@ -30,7 +31,8 @@ class mpi_gsync {
                gvt_counter_(counter::instance("GVT")) {};
 
  private:
-  int transit_counter_;
+  int send_counter_;
+  int rec_counter_;
   bool is_red_;
   int processing_ev_interval_;
   timestamp local_min_; boost::mutex mutex_;
@@ -58,9 +60,12 @@ class mpi_gsync {
   void increment_interval();
   timestamp get_gvt();
   void check_sync();
-  void increment_transit_conut() { ++transit_counter_; };
-  void decrement_transit_conut() { --transit_counter_; };
-  void reset_counter() { transit_counter_ = 0; };
+  void increment_transit_conut() { ++send_counter_; };
+  void decrement_transit_conut() { ++rec_counter_; };
+  void reset_counter() {
+    send_counter_ = 0;
+    rec_counter_ = 0;
+  };
 
   bool is_red() const { return is_red_; };
  private:
@@ -113,7 +118,8 @@ void mpi_gsync<App>::check_sync() {
     stopwatch::instance("GlobalSync")->start();
 
     /* checking WHITE transit messages for making second cut */
-    if (reduce_white_transit_num() <= 0) {
+    long transit_msg_num = reduce_white_transit_num();
+    if (transit_msg_num == 0) {
       /* make second cut */
       is_red_ = false;
       processing_ev_interval_ = 0;
@@ -135,13 +141,17 @@ void mpi_gsync<App>::check_sync() {
       /* reset local_min_ */
       local_min_ = timestamp::null();
     }
+    DLOG_ASSERT(transit_msg_num >= 0)
+        << "transit message: " << transit_msg_num
+        << ". Transit messages must be more than 0 !!! Check GSYNC_INTERVAL";
+
     stopwatch::instance("GlobalSync")->stop();
   }
 };
 
 template<class App>
 int mpi_gsync<App>::reduce_white_transit_num() {
-  int ret = transit_counter_;
+  int ret = send_counter_ - rec_counter_;
   ret = boost::mpi::all_reduce(*comm_world_, ret, std::plus<int>());
   return ret;
 }
