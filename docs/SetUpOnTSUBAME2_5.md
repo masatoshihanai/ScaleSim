@@ -55,7 +55,7 @@ Download the latest databases and compile as that.
 ```
 $ cd (your levelDB)
 $ make
-$ cp -r include ~/include
+$ cp -r include/* ~/include
 $ cp -r libleveldb.a ~/lib
 ```
 
