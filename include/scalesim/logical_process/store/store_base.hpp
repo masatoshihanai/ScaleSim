@@ -10,9 +10,9 @@
 #ifndef SCALESIM_LOGICAL_PROCESS_STORE_STORE_BASE_HPP_
 #define SCALESIM_LOGICAL_PROCESS_STORE_STORE_BASE_HPP_
 
-#include "scalesim/logical_process/store/berkeleydb_store.hpp"
+//#include "scalesim/logical_process/store/berkeleydb_store.hpp"
 #include "scalesim/logical_process/store/leveldb_store.hpp"
-#include "scalesim/logical_process/store/redis_store.hpp"
+//#include "scalesim/logical_process/store/redis_store.hpp"
 #include "scalesim/util.hpp"
 
 namespace scalesim {
