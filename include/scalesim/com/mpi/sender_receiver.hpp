@@ -28,8 +28,8 @@ class mpi_sender {
     if (send_events_) { delete send_events_; }
   };
  private:
-  std::vector<std::pair<int, ev_ptr<App> > >* buffer_; boost::mutex buf_mutex_;
-  std::vector<std::pair<int, ev_ptr<App> > >* send_events_;
+  std::vector<std::vector<event<App> >* >* buffer_; boost::mutex buf_mutex_;
+  std::vector<std::vector<event<App> >* >* send_events_;
   const boost::mpi::communicator* comm_world_;
   std::vector<boost::mpi::request> requests_;
  public:
@@ -44,14 +44,21 @@ class mpi_sender {
 
 template<class App>
 void mpi_sender<App>::init(const boost::mpi::communicator* communicator) {
-  buffer_ = new std::vector<std::pair<int, ev_ptr<App> > >;
-  send_events_ = new std::vector<std::pair<int, ev_ptr<App> > >;
   comm_world_ = communicator;
+  buffer_ = new std::vector<std::vector<event<App> >* >(communicator->size());
+  send_events_ = new std::vector<std::vector<event<App> >* >(communicator->size());
+
+  for (int i = 0; i < communicator->size(); ++i) {
+    (*buffer_)[i] = new std::vector<event<App> >();
+    (*send_events_)[i] = new std::vector<event<App> >();
+    std::cout << send_events_->size() << std::endl;
+  }
 }
 
 template<class App>
 void mpi_sender<App>::buffer_sendevent(const int rank,
                                        const ev_ptr<App>& event) {
+  /* Buffer to Send */
   boost::lock_guard<boost::mutex> guard(buf_mutex_);
   /* count sending white message for global sync. */
   if (mpi_gsync<App>::instance()->is_red()) {
@@ -64,45 +71,59 @@ void mpi_sender<App>::buffer_sendevent(const int rank,
     event->change_white();
     mpi_gsync<App>::instance()->increment_transit_conut();
   }
-  buffer_->push_back(std::pair<int, ev_ptr<App> >(rank, event));
+  (*buffer_)[rank]->push_back(*event);
 };
 
 template<class App>
 void mpi_sender<App>::async_send() {
-  if (send_events_->empty()) {
-    change_buffer();
+  bool change_buffer_flag = true;
+  for (int i = 0; i < comm_world_->size(); ++i) {
+    if (!((*send_events_)[i]->empty())) {
+      change_buffer_flag = false;
+      break;
+    }
   }
-  while (!send_events_->empty()) {
-    stopwatch::instance("PartiToPartiCommunication")->start();
-    /* send event */
-    requests_.push_back(comm_world_->isend(send_events_->begin()->first,
-                                           0,
-                                           *send_events_->begin()->second));
-    send_events_->erase(send_events_->begin());
-    stopwatch::instance("PartiToPartiCommunication")->stop();
+  if (change_buffer_flag) change_buffer();
+
+  stopwatch::instance("PartiToPartiCommunication")->start();
+  for (int i = 0; i < comm_world_->size(); ++i) {
+    if ((*send_events_)[i]->size() == 0) continue;
+    requests_.push_back(comm_world_->isend(i, 0, *(*send_events_)[i]));
+    (*send_events_)[i]->clear();
   }
+  stopwatch::instance("PartiToPartiCommunication")->stop();
 };
 
 template<class App>
 void mpi_sender<App>::check_send() {
   auto it = boost::mpi::test_some(requests_.begin(), requests_.end());
-  if (it != requests_.end()) {
+  while (it != requests_.end()) {
     requests_.erase(it);
+    it = boost::mpi::test_some(requests_.begin(), requests_.end());
   }
 };
 
 template<class App>
 void mpi_sender<App>::reset() {
-  buffer_->clear();
-  send_events_->clear();
+  for (int i = 0; i < comm_world_->size(); ++i) {
+    (*buffer_)[i]->clear();
+    (*send_events_)[i]->clear();
+  }
 };
 
 template<class App>
 void mpi_sender<App>::change_buffer() {
   boost::lock_guard<boost::mutex> guard(buf_mutex_);
+  for (int i = 0; i < comm_world_->size(); ++i) {
+    delete (*send_events_)[i];
+    (*send_events_)[i] = NULL;
+  }
   delete send_events_;
   send_events_ = buffer_;
-  buffer_ = new std::vector<std::pair<int, ev_ptr<App> > >;
+  buffer_ = new std::vector<std::vector<event<App> >* >(comm_world_->size());
+  for (int i = 0; i < comm_world_->size(); ++i) {
+    (*buffer_)[i] = new std::vector<event<App> >();
+  }
 };
 
 template<class App>
@@ -125,22 +146,22 @@ class mpi_receiver {
 template<class App>
 void mpi_receiver<App>::receive(
     const boost::function<void(const ev_ptr<App>&)>& call_back_f) {
+  stopwatch::instance("PartiToPartiCommunication")->start();
   while (comm_world_->iprobe()) {
-    stopwatch::instance("PartiToPartiCommunication")->start();
-    event<App> event_;
-    comm_world_->recv(boost::mpi::any_source, 0, event_);
-    ev_ptr<App> receive_event
-        = boost::make_shared<event<App> >(event_);
-    call_back_f(receive_event);
-    timestamp tmstmp_(receive_event->receive_time(), receive_event->id());
-    mpi_gsync<App>::instance()->update_local(tmstmp_);
-
-    /* count white transit message */
-    if (event_.is_white()) {
-      mpi_gsync<App>::instance()->decrement_transit_conut();
+    std::vector<event<App> > events_;
+    comm_world_->recv(boost::mpi::any_source, 0, events_);
+    for (auto it = events_.begin(); it != events_.end(); ++it) {
+      ev_ptr<App> receive_event = boost::make_shared<event<App> >(*it);
+      call_back_f(receive_event);
+      timestamp tmstmp_(receive_event->receive_time(), receive_event->id());
+      mpi_gsync<App>::instance()->update_local(tmstmp_);
+      /* count white transit message */
+      if (receive_event->is_white()) {
+        mpi_gsync<App>::instance()->decrement_transit_conut();
+      }
     }
-    stopwatch::instance("PartiToPartiCommunication")->stop();
   }
+  stopwatch::instance("PartiToPartiCommunication")->stop();
 };
 
 } /* namepsace scalesim */
