@@ -96,9 +96,11 @@ void mpi_sender<App>::async_send() {
 template<class App>
 void mpi_sender<App>::check_send() {
   auto it = boost::mpi::test_some(requests_.begin(), requests_.end());
-  while (it != requests_.end()) {
+  // TODO message flow should be optimized
+  // while (it != requests_.end()) {
+  if (it != requests_.end()) {
     requests_.erase(it);
-    it = boost::mpi::test_some(requests_.begin(), requests_.end());
+    // it = boost::mpi::test_some(requests_.begin(), requests_.end());
   }
 };
 
