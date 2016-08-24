@@ -54,7 +54,7 @@ class runner {
   void loop();
   void finish();
 
-  void run(int scheduler_id);
+  void run_lp(int scheduler_id);
   void run_lp_aggr(lp<App>* lp);
   void clear(int scheduler_id, const timestamp& time);
 };
@@ -353,7 +353,7 @@ void runner<App>::loop() {
     /* processing events with threads */
     stopwatch::instance("EventProcessing")->start();
     for (int i = 0; i < schedulers_.size(); ++i) {
-      pool.post(boost::bind(&runner<App>::run, this, i));
+      pool.post(boost::bind(&runner<App>::run_lp, this, i));
     }
     pool.wait_all();
     stopwatch::instance("EventProcessing")->stop();
@@ -515,7 +515,7 @@ void runner<App>::finish() {
 }; /* finish() */
 
 template<class App>
-void runner<App>::run(int scheduler_id) {
+void runner<App>::run_lp(int scheduler_id) {
   for (int i = 0; i < App::gsync_interval(); ++i) {
     long lp_id_ = schedulers_[scheduler_id].dequeue();
     if (lp_id_ < 0) break;
