@@ -306,8 +306,15 @@ void stateq<App>::store_state(const timestamp& to) {
   DLOG_ASSERT(released_st_time < to || released_st_time == to)
       << "Global time: " << to.time()
       << " is lower than stored time: " << stored_st_time.time();
-  for (auto it = state_map.lower_bound(stored_st_time);
-       it != state_map.lower_bound(to); ++it) {
+
+  typename std::map<timestamp, st_ptr<App> >::iterator it;
+  if (released_st_time == timestamp::zero()) {
+    it = state_map.begin();
+  } else {
+    it = state_map.lower_bound(stored_st_time);
+  }
+
+  for (; it != state_map.lower_bound(to); ++it) {
     timestamp key = it->first;
     st_ptr<App> value = it->second;
     store<App>::st_store()->put(key, id_, *value);
