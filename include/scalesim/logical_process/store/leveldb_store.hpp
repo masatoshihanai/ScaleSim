@@ -240,7 +240,6 @@ void leveldb_store<Object>::get_prev(const timestamp& time,
                                      const long lp_id,
                                      obj_ptr& ret,
                                      timestamp& time_of_ret) {
-  boost::lock_guard<boost::mutex> guard(get_mutex_);
   /* For TEST */
   if (batch) {
     db->Write(leveldb::WriteOptions(), batch);
@@ -286,7 +285,6 @@ void leveldb_store<Object>::get_range(const timestamp& from,
                                       const long lp_id,
                                       std::vector<obj_ptr>& ret_obj) {
   if (from == to || from > to) return;
-  boost::lock_guard<boost::mutex> guard(get_mutex_);
   /* For TEST */
   if (batch) {
     db->Write(leveldb::WriteOptions(), batch);
