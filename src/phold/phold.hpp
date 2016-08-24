@@ -38,6 +38,7 @@ static long NUM_LP = 100;
 static long NUM_INIT_MSG = 1600;
 static double REMOTE_COM_RATIO = 0.1;
 static double LAMBDA = 1.0;
+static long RANDOM_SEED = 1;
 
 /* Parameter of what-if */
 static long NUM_WHAT_IF = 1;
@@ -51,7 +52,7 @@ static int GTW_CUT_INTERVAL = 50;
 
 static const int EFFECTIVE_DECIMAL = 100000;
 static const long LOOK_AHEAD = 0.1 * EFFECTIVE_DECIMAL;
-static const int RAND_TABLE_SIZE = 10000;
+static const int RAND_TABLE_SIZE = 10000000;
 static long LATENCY_TABLE[RAND_TABLE_SIZE];
 /* If value is 1, send to remote. Else if value is 0, send to local */
 static int REMOTE_COM_TABLE[RAND_TABLE_SIZE];
@@ -134,7 +135,7 @@ class phold: public scalesim::application {
   static int num_thr() { return boost::thread::physical_concurrency(); };
 
   /* Application configuration */
-  static long finish_time() { return 10 * EFFECTIVE_DECIMAL; }
+  static long finish_time() { return 30 * EFFECTIVE_DECIMAL; }
 
   /*
    * Initiation function for application.
@@ -142,7 +143,7 @@ class phold: public scalesim::application {
    */
   void init() {
     /* Make random numbers table for deciding latency */
-    int ex_seed = 1;
+    int ex_seed = RANDOM_SEED;
     std::default_random_engine ex_generator(ex_seed);
     std::exponential_distribution<double> ex_distribution(LAMBDA);
     for (int i = 0; i < RAND_TABLE_SIZE; ++i) {
@@ -150,7 +151,7 @@ class phold: public scalesim::application {
     }
 
     /* Make random numbers table for deciding next logical process */
-    int uni_seed = 1;
+    int uni_seed = RANDOM_SEED;
     std::default_random_engine uni_generator(uni_seed);
     std::uniform_real_distribution<double> uni_distribution(0.0, 1.0);
     for (int i = 0; i < RAND_TABLE_SIZE; ++i) {
@@ -235,7 +236,7 @@ class phold: public scalesim::application {
     /* Generate what-if scenario */
     for (long i = 0; i < NUM_WHAT_IF; ++i) {
       LP_OF_WHATIF.push_back(i); /* Just select LP0, LP1, LP2,,, */
-      TIME_OF_WHATIF.push_back(0); /* Every what-ifs is from Zero */
+      TIME_OF_WHATIF.push_back(1); /* Every what-ifs is from 1 * EFFECTIVE_DECIMAL */
     }
 
     /* Init what-if scenario */
