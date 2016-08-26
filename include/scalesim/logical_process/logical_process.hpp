@@ -141,15 +141,16 @@ void lp<App>::flush_buf(std::vector<ev_ptr<App>>& new_cancels) {
     for (auto it = load_cancels_.begin(); it != load_cancels_.end(); ++it) {
       set_cancel(*it);
     }
+  }
+  local_time_ = std::min(local_time_, eventq_.merge_buffer(new_cancels));
 
+  if (FLAGS_diff_repeat) {
     /* load state */
     st_ptr<App> load_state_;
     timestamp load_tmstmp_;
     load_prev_state(load_state_, load_tmstmp_, local_time_);
     if (load_state_) { init_state(load_state_, load_tmstmp_); }
   }
-
-  local_time_ = std::min(local_time_, eventq_.merge_buffer(new_cancels));
   stateq_.rollback_state(local_time_);
 
   (*cancel_counter_) += new_cancels.size();
