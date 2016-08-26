@@ -115,7 +115,7 @@ void mpi_gsync<App>::check_sync() {
   /* make second cut */
   if (is_red_) {
     boost::lock_guard<boost::mutex> guard(mutex_);
-    stopwatch::instance("GlobalSync")->start();
+    //stopwatch::instance("GlobalSync")->start();
 
     /* checking WHITE transit messages for making second cut */
     long transit_msg_num = reduce_white_transit_num();
@@ -145,7 +145,7 @@ void mpi_gsync<App>::check_sync() {
         << "transit message: " << transit_msg_num
         << ". Transit messages must be more than 0 !!! Check GSYNC_INTERVAL";
 
-    stopwatch::instance("GlobalSync")->stop();
+    //stopwatch::instance("GlobalSync")->stop();
   }
 };
 
