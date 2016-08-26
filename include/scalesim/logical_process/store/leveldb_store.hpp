@@ -133,7 +133,9 @@ template<class Object>
 void leveldb_store<Object>::finish() {
   if (batch) {
     stopwatch::instance("DBWrite")->start();
-    db->Write(leveldb::WriteOptions(), batch);
+    leveldb::WriteOptions option;
+    option.sync = true;
+    db->Write(option, batch);
     delete batch;
     batch = NULL;
     stopwatch::instance("DBWrite")->stop();
@@ -240,6 +242,7 @@ void leveldb_store<Object>::get_prev(const timestamp& time,
                                      const long lp_id,
                                      obj_ptr& ret,
                                      timestamp& time_of_ret) {
+  boost::lock_guard<boost::mutex> guard(get_mutex_);
   /* For TEST */
   if (batch) {
     db->Write(leveldb::WriteOptions(), batch);
@@ -284,6 +287,7 @@ void leveldb_store<Object>::get_range(const timestamp& from,
                                       const timestamp& to,
                                       const long lp_id,
                                       std::vector<obj_ptr>& ret_obj) {
+  boost::lock_guard<boost::mutex> guard(get_mutex_);
   if (from == to || from > to) return;
   /* For TEST */
   if (batch) {
