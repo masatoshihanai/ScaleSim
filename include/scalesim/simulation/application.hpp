@@ -45,10 +45,9 @@ class application {
 
   /*
    * # of thread for processing simulation event
-   * In general, the effective # is (# of processors) + 1 per Node.
-   * For instance, when a machine has 4 cores, 5 (4 core + 1) is effective.
+   * In general, the effective # is (# of processors) per Node.
    */
-  static int num_thr () { return boost::thread::physical_concurrency(); };
+  static int num_thr () { return boost::thread::physical_concurrency() - 1; };
 
   /*
    * Simulation finishes when global time >= finish_time().
