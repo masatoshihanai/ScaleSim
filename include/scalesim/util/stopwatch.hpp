@@ -43,15 +43,20 @@ class stopwatch {
   static std::map<std::string, stopwatch*>* stopwatches() {
     static std::map<std::string, stopwatch*> stopwtches;
     return &stopwtches;
- }
+  };
+  static boost::mutex mutex_;
+
  public:
   static stopwatch* instance(std::string name) {
     if (stopwatches()->find(name) == stopwatches()->end()) {
+      boost::lock_guard<boost::mutex> guard(mutex_);
       stopwatches()->insert(std::pair<std::string, stopwatch*>(name, new stopwatch()));
     }
     return stopwatches()->find(name)->second;
   };
 };
+
+boost::mutex stopwatch::mutex_;
 
 } /* namespace scalesim */
 
