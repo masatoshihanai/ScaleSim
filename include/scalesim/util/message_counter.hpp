@@ -55,7 +55,9 @@ class counter {
   };
 
  public:
+  static boost::mutex mutex_;
   static counter* instance(std::string name) {
+    boost::lock_guard<boost::mutex> guard(mutex_);
     if (counters()->find(name) == counters()->end()) {
       counters()->insert(
           std::pair<std::string, std::vector<counter*> >(
@@ -77,6 +79,8 @@ class counter {
     return ret;
   };
 };
+
+boost::mutex counter::mutex_;
 
 } /* namespace scalesim */
 
