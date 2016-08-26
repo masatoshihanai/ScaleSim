@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
   /* System Parameters */
   RANDOM_SEED = 1;
   GSYNC_INTERVAL = 10;
-  LP_INTERVAL = 4;
+  LP_INTERVAL = 1;
   GTW_CUT_INTERVAL = std::stoi(argv[6]);
 
   runner_.run();

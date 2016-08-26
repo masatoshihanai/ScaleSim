@@ -135,7 +135,7 @@ class phold: public scalesim::application {
   static int num_thr() { return boost::thread::physical_concurrency(); };
 
   /* Application configuration */
-  static long finish_time() { return 30 * EFFECTIVE_DECIMAL; }
+  static long finish_time() { return 5 * EFFECTIVE_DECIMAL; }
 
   /*
    * Initiation function for application.
