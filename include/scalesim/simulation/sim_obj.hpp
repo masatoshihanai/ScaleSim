@@ -100,21 +100,28 @@ class sim_state {
 template<class App>
 class what_if {
  public:
-  what_if(){};
+  what_if(): lp_id_(-1), time_(-1), delete_event_id_(-1){};
   virtual ~what_if() {};
-  what_if(const long lp_id, const long time): lp_id_(lp_id), time_(time) {};
+  what_if(const what_if& value) {
+    lp_id_ = value.lp_id_;
+    time_ = value.time_;
+    update_state_ = value.update_state_;
+    add_event_ = value.add_event_;
+    delete_event_id_ = value.delete_event_id_;
+  }
+  what_if(const long lp_id, const long time): lp_id_(lp_id), time_(time), delete_event_id_(-1) {};
   what_if(const long lp_id, const long time, const state<App>& update_state):
-      lp_id_(lp_id), time_(time), update_state_(update_state) {};
+      lp_id_(lp_id), time_(time), update_state_(update_state), delete_event_id_(-1) {};
   what_if(const long lp_id, const long time, const event<App>& add_event):
-      lp_id_(lp_id), time_(time), add_event_(add_event) {};
+      lp_id_(lp_id), time_(time), add_event_(add_event), delete_event_id_(-1) {};
   what_if(const long lp_id, const long time, const long delete_event_id):
       lp_id_(lp_id), time_(time), delete_event_id_(delete_event_id) {};
  public:
-  long lp_id_ = -1;
-  long time_ = -1;
+  long lp_id_;
+  long time_;
   state<App> update_state_;
   event<App> add_event_;
-  long delete_event_id_ = -1;
+  long delete_event_id_;
  private:
   friend class boost::serialization::access;
   template<class Archive>

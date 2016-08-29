@@ -208,7 +208,7 @@ void mpi_collection<App>::shuffle_what_if() {
     for (int i = 0; i < max_buf_size; ++i) {
       if (in_bufs[rank*max_buf_size + i].lp_id_ == -1) break;
       shuffle_wi_ret_->push_back(
-          boost::make_shared<what_if<App> >(what_if<App>(in_bufs[rank + i])));
+          boost::make_shared<what_if<App> >(what_if<App>(in_bufs[rank*max_buf_size + i])));
     }
   }
 };

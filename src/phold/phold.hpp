@@ -233,19 +233,15 @@ class phold: public scalesim::application {
       std::vector<boost::shared_ptr<const scalesim::what_if<phold> > >& ret,
       const int rank,
       const int rank_size) {
-    /* Generate what-if scenario */
-    for (long i = 0; i < NUM_WHAT_IF; ++i) {
-      LP_OF_WHATIF.push_back(i); /* Just select LP0, LP1, LP2,,, */
-      TIME_OF_WHATIF.push_back(1); /* Every what-ifs is from 1 * EFFECTIVE_DECIMAL */
-    }
-
     /* Init what-if scenario */
     for (long i = 0; i < NUM_WHAT_IF; ++i) {
-      long lp_id = LP_OF_WHATIF[i];
-      long time = TIME_OF_WHATIF[i];
-      event<phold> add_event(NUM_INIT_MSG + i, lp_id, lp_id, time, time, 0);
-      ret.push_back(boost::make_shared<scalesim::what_if<phold> >(
-          scalesim::what_if<phold>(lp_id, time, add_event)));
+      if (i % rank_size == rank) {
+        long lp_id = i; /* Just select LP0, LP1, LP2,,, */
+        long time = 1; /* Every what-ifs is from 1 */
+        event<phold> add_event(NUM_INIT_MSG + i, lp_id, lp_id, time, time, 0);
+        ret.push_back(boost::make_shared<scalesim::what_if<phold> >(
+            scalesim::what_if<phold>(lp_id, time, add_event)));
+      }
     }
   };
 
