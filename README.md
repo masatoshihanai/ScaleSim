@@ -5,7 +5,7 @@ based on optimistic PDES (Parallel Discrete Event Simulation).
 
 ScaleSim provides **_Exact-Differential_** execution, proposed in
 
-- *"Exact-Differential Simulation: Differential Processing of Large-Scale Discrete Event Simulations (TOMACS 2018)"*
+- *"Exact-Differential Simulation: Differential Processing of Large-Scale Discrete Event Simulations" (TOMACS 2018)*
 - *"Towards Large-Scale What-If Traffic Simulation with Exact-Differential Simulation" (WSC 2015)*
 - *"Exact-Differential Large-Scale Traffic Simulation" (SIGSIM PADS 2015)*
 
